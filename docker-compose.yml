@@ -1,0 +1,29 @@
+version: '3.8'
+# Docker Compose configuration for Echo AI application with DynamoDB Local
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echo-ai-app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - dynamodb-local
+    environment:
+      - NODE_ENV=development
+      # HOT RELOAD
+      - WATCHPACK_POLLING=true
+
+  dynamodb-local:
+    image: amazon/dynamodb-local
+    container_name: echo-ai-dynamodb
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./docker/dynamodb-data:/home/dynamodblocal/data
+    working_dir: /home/dynamodblocal
