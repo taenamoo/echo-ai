@@ -11,6 +11,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml* ./
 
 ## 5. pnpm Install
+# Set the store directory to a local path witnin the project
+RUN pnpm config set store-dir .pnpm-store
 RUN pnpm install
 
 ## 6. Expose Port

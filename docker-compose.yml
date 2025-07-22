@@ -12,6 +12,7 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
+      - /app/.pnpm-store
     depends_on:
       - dynamodb-local
     environment:

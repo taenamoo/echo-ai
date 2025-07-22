@@ -2,13 +2,16 @@
     "name": "Echo AI Dev Container",
     "dockerComposeFile": "../docker-compose.yml",
     "service": "app",
+    "workspaceMount": "source=${localWorksplaceFolder},target=/app,type=bind",
     "workspaceFolder": "/app",
     "customizations": {
         "vscode": {
             "extensions": [
                 "dbaeumer.vscode-eslint",
-                "esbenp.prettier-vscode",
                 "bradlc.vscode-tailwindcss",
+                "GitHub.copilot",
+                "GitHub.copilot-chat",
+                "esbenp.prettier-vscode"
             ]
         }
     }

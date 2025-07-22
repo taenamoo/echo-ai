@@ -1,0 +1,37 @@
+# Rename this file to .env.local before using it.
+
+# ==================================
+# Next.js & Frontend Configuration
+# ==================================
+# 프론트엔드에서 호출할 백엔드 API의 기본 URL입니다.
+# Next.js API 라우트를 사용하므로, 현재 서버의 /api 경로를 가리킵니다.
+NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
+
+
+# ==================================
+# Backend & AI Service Configuration
+# ==================================
+# AI 요약 기능을 위해 사용할 OpenAI의 API 키입니다.
+# OpenAI 대시보드에서 발급받은 시크릿 키를 입력하세요.
+CHATGPT_API_KEY="sk-..."
+
+
+# ==================================
+# JWT (JSON Web Token) Configuration
+# ==================================
+# 사용자 인증 토큰을 생성하고 검증하기 위한 비밀 키입니다.
+# 보안을 위해 더 복잡하고 긴 문자열로 변경하는 것을 강력히 권장합니다.
+JWT_SECRET="THIS_IS_A_VERY_SECRET_KEY_FOR_ECHO_AI_CHANGE_ME"
+
+
+# ==================================
+# AWS Credentials & Configuration
+# ==================================
+# AWS 서비스(S3, DynamoDB, SQS 등)와 연동하기 위한 자격 증명입니다.
+# 보안을 위해 최소한의 권한을 가진 IAM 사용자의 키를 사용하는 것이 좋습니다.
+AWS_REGION="ap-northeast-2"
+AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY_ID"
+AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_ACCESS_KEY"
+
+# 사용자가 파일을 업로드할 S3 버킷의 이름입니다.
+S3_BUCKET_NAME="your-s3-bucket-name-here"
