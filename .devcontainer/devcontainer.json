@@ -2,7 +2,6 @@
     "name": "Echo AI Dev Container",
     "dockerComposeFile": "../docker-compose.yml",
     "service": "app",
-    "workspaceMount": "source=${localWorksplaceFolder},target=/app,type=bind",
     "workspaceFolder": "/app",
     "customizations": {
         "vscode": {
@@ -14,5 +13,8 @@
                 "esbenp.prettier-vscode"
             ]
         }
+    },
+    "remoteEnv": {
+        "NODE_ENV": "development"
     }
 }

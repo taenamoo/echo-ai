@@ -11,6 +11,11 @@
 !.yarn/versions
 /.pnpm-store/*
 
+# ca-certs
+*.crt
+*.pem
+*.cer 
+
 # testing
 /coverage
 

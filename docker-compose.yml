@@ -19,6 +19,8 @@ services:
       - NODE_ENV=development
       # HOT RELOAD
       - WATCHPACK_POLLING=true
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
+
 
   dynamodb-local:
     image: amazon/dynamodb-local
