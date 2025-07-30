@@ -6,6 +6,7 @@
 # 프론트엔드에서 호출할 백엔드 API의 기본 URL입니다.
 # Next.js API 라우트를 사용하므로, 현재 서버의 /api 경로를 가리킵니다.
 NEXT_PUBLIC_API_BASE_URL=http://localhost:3000/api
+DYNAMODB_ENDPOINT=http://dynamodb-local:8998
 
 # ==================================
 # Backend & AI Service Configuration
