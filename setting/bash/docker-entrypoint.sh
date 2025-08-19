@@ -15,4 +15,3 @@ pnpm run db:migrate
 echo "Starting the application..."
 exec "$@"
 # Note: The exec command replaces the current shell with the command specified in the arguments.
-

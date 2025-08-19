@@ -18,6 +18,7 @@ services:
       # HOT RELOAD
       - WATCHPACK_POLLING=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
+      #- DYNAMODB_ENDPOINT=http://dynamodb-local:8998
     depends_on:
       - dynamodb-local
     networks:
