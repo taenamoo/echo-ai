@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent, useRef, MouseEvent, TouchEvent } from 'react';
 import axios from 'axios';
-import './study.css'; // CSS 파일 임포트
+import './study.css';
 
 // 스터디 데이터의 타입 구조를 정의합니다.
 interface Study {
@@ -15,7 +15,16 @@ interface Study {
   parent_id: string | null;
   ai_suggestion?: string;
   children?: Study[];
+  reference_links?: string[];
   [key: string]: any;
+}
+
+// [추가] 퀴즈 데이터 타입을 정의합니다.
+interface Quiz {
+  question: string;
+  options: string[];
+  answer: string;
+  explanation: string;
 }
 
 // 메인 컨텐츠 영역에 표시될 뷰의 종류를 정의합니다. (상세보기, 생성, 수정)
@@ -206,8 +215,13 @@ export default function StudyPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [formParentId, setFormParentId] = useState<string | null>(null);
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+  const [quizData, setQuizData] = useState<Quiz[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
+  const [isAnswerChecked, setIsAnswerChecked] = useState(false);
+  const [isGeneratingQuiz, setIsGeneratingQuiz] = useState(false);
 
-  // [수정] studyIdToSelect 파라미터를 추가하여, 데이터 로딩 후 특정 노드를 선택하도록 변경
   const fetchStudies = async (token: string, studyIdToSelect?: string) => {
     try {
       setIsLoading(true);
@@ -223,7 +237,6 @@ export default function StudyPage() {
       setStudies(sortedStudies);
 
       let studyToSelect: Study | null = null;
-      // 선택할 ID가 지정된 경우, 전체 목록에서 해당 노드를 찾습니다.
       if (studyIdToSelect) {
         const findStudy = (items: Study[]): Study | null => {
             for (const item of items) {
@@ -241,16 +254,14 @@ export default function StudyPage() {
       if (studyToSelect) {
         setSelectedStudy(studyToSelect);
       } else if (sortedStudies.length > 0) {
-        // 선택할 ID가 없으면 기본적으로 첫 번째 항목을 선택합니다.
         const firstItem = sortedStudies[0].children && sortedStudies[0].children.length > 0 ? sortedStudies[0].children[0] : sortedStudies[0];
         setSelectedStudy(firstItem);
       } else {
-        // 데이터가 없으면 생성 모드로 전환합니다.
         setSelectedStudy(null);
         setMode('create');
         setFormParentId(null);
       }
-      setMode('detail'); // 항상 상세 보기 모드로 시작
+      setMode('detail');
     } catch (error) { console.error("Failed to fetch studies", error); } 
     finally { setIsLoading(false); }
   };
@@ -281,6 +292,44 @@ export default function StudyPage() {
       } catch (error) { alert('삭제에 실패했습니다.'); }
     }
   };
+  
+  const handleGenerateQuiz = async () => {
+    if (!selectedStudy || !accessToken) return;
+    setIsGeneratingQuiz(true);
+    setQuizData([]);
+    setCurrentQuestionIndex(0);
+    setSelectedAnswer(null);
+    setIsAnswerChecked(false);
+    setIsQuizModalOpen(true);
+    try {
+      const { data } = await axios.post('/api/study/quiz', selectedStudy, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      setQuizData(data.quiz || []);
+    } catch (error) {
+      console.error("Quiz generation failed", error);
+      setQuizData([]);
+    } finally {
+      setIsGeneratingQuiz(false);
+    }
+  };
+
+  const handleAnswerCheck = () => {
+    setIsAnswerChecked(true);
+  };
+
+  const handleNextQuestion = () => {
+    if (currentQuestionIndex < quizData.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+      setSelectedAnswer(null);
+      setIsAnswerChecked(false);
+    }
+  };
+  
+  const handleRetryQuiz = () => {
+      setSelectedAnswer(null);
+      setIsAnswerChecked(false);
+  };
 
   const StudyForm = ({ study, parentId, onSave, onCancel }: { study: Partial<Study> | null, parentId: string | null, onSave: (savedStudy: Study) => void, onCancel: () => void }) => {
     const isSubMenu = !!parentId || !!study?.parent_id;
@@ -291,8 +340,21 @@ export default function StudyPage() {
       bad_example: study?.bad_example || '',
       study_order: study?.study_order || studies.length + 1,
       parent_id: parentId || study?.parent_id || null,
+      reference_links: study?.reference_links || [],
     });
+    const [newLink, setNewLink] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+    const handleAddLink = () => {
+        if (newLink && !formData.reference_links.includes(newLink)) {
+            setFormData(prev => ({ ...prev, reference_links: [...prev.reference_links, newLink] }));
+            setNewLink('');
+        }
+    };
+
+    const handleRemoveLink = (linkToRemove: string) => {
+        setFormData(prev => ({ ...prev, reference_links: prev.reference_links.filter(link => link !== linkToRemove) }));
+    };
 
     const handleSubmit = async (e: FormEvent) => {
       e.preventDefault();
@@ -335,13 +397,34 @@ export default function StudyPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="form-group">
-                <label htmlFor="good_example">좋은 예시</label>
-                <textarea id="good_example" value={formData.good_example} onChange={e => setFormData({...formData, good_example: e.target.value})} className="form-textarea h-40"></textarea>
+                <label>좋은 예시 (코드 실행 가능)</label>
+                <div className="code-editor-placeholder">
+                  <textarea value={formData.good_example} onChange={e => setFormData({...formData, good_example: e.target.value})} className="form-textarea h-40"></textarea>
+                  <button type="button" className="btn btn-secondary mt-2">코드 실행</button>
+                </div>
               </div>
               <div className="form-group">
-                <label htmlFor="bad_example">나쁜 예시</label>
-                <textarea id="bad_example" value={formData.bad_example} onChange={e => setFormData({...formData, bad_example: e.target.value})} className="form-textarea h-40"></textarea>
+                <label>나쁜 예시 (코드 실행 가능)</label>
+                 <div className="code-editor-placeholder">
+                  <textarea value={formData.bad_example} onChange={e => setFormData({...formData, bad_example: e.target.value})} className="form-textarea h-40"></textarea>
+                  <button type="button" className="btn btn-secondary mt-2">코드 실행</button>
+                </div>
               </div>
+            </div>
+             <div className="form-group">
+                <label>참고 링크</label>
+                <div className="flex gap-2">
+                    <input type="url" value={newLink} onChange={e => setNewLink(e.target.value)} placeholder="https://..." className="form-input"/>
+                    <button type="button" onClick={handleAddLink} className="btn btn-primary">추가</button>
+                </div>
+                <ul className="mt-2 space-y-1">
+                    {formData.reference_links.map((link, index) => (
+                        <li key={index} className="flex items-center justify-between text-sm">
+                            <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 truncate">{link}</a>
+                            <button type="button" onClick={() => handleRemoveLink(link)} className="text-red-500">x</button>
+                        </li>
+                    ))}
+                </ul>
             </div>
           </>
         )}
@@ -402,7 +485,12 @@ export default function StudyPage() {
             <div className="content-card">
               <div className="card-header">
                 <h1 className="card-title">{selectedStudy.title}</h1>
-                <button onClick={() => setMode('edit')} className="btn btn-warning">수정</button>
+                 <div className="flex gap-2">
+                    {selectedStudy.parent_id && (
+                      <button onClick={handleGenerateQuiz} className="btn btn-primary">AI 퀴즈 풀기</button>
+                    )}
+                    <button onClick={() => setMode('edit')} className="btn btn-warning">수정</button>
+                  </div>
               </div>
               
               <div className="detail-section content-section">
@@ -442,6 +530,22 @@ export default function StudyPage() {
                       <p className="detail-section-content">{selectedStudy.ai_suggestion}</p>
                     </div>
                   )}
+                   <div className="detail-section mt-8">
+                      <div className="detail-section-header">
+                        <span>🔗 참고 링크</span>
+                      </div>
+                      <div className="detail-section-content">
+                        {(selectedStudy.reference_links && selectedStudy.reference_links.length > 0) ? (
+                          <ul className="list-disc pl-5 space-y-2">
+                            {selectedStudy.reference_links.map((link: string, index: number) => (
+                              <li key={index}>
+                                <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{link}</a>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : "등록된 링크가 없습니다."}
+                      </div>
+                    </div>
                 </>
               )}
             </div>
@@ -456,7 +560,6 @@ export default function StudyPage() {
                 study={mode === 'edit' ? selectedStudy : null} 
                 parentId={formParentId} 
                 onSave={(savedStudy) => { 
-                  // [수정] onSave 콜백에서 study_id를 전달하여 fetchStudies가 해당 항목을 선택하도록 함
                   fetchStudies(accessToken!, savedStudy.study_id); 
                 }}
                 onCancel={() => {
@@ -470,6 +573,69 @@ export default function StudyPage() {
         
         <AiSearchButton />
       </div>
+      
+      {isQuizModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center" onClick={() => setIsQuizModalOpen(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
+            <header className="p-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-800">AI 생성 퀴즈</h3>
+              <button onClick={() => setIsQuizModalOpen(false)} className="text-gray-500 hover:text-gray-800">X</button>
+            </header>
+            <div className="p-6 max-h-[70vh] overflow-y-auto">
+              {isGeneratingQuiz ? (
+                <p>퀴즈를 생성 중입니다...</p>
+              ) : quizData.length > 0 ? (
+                <div>
+                  <h4 className="font-bold text-lg mb-4">{`문제 ${currentQuestionIndex + 1}. ${quizData[currentQuestionIndex].question}`}</h4>
+                  <div className="space-y-3 mb-4">
+                    {quizData[currentQuestionIndex].options.map((option, index) => {
+                      const isCorrect = option === quizData[currentQuestionIndex].answer;
+                      const isSelected = option === selectedAnswer;
+                      let buttonClass = "w-full p-3 text-left border rounded-lg transition-colors";
+                      if (isAnswerChecked) {
+                        if (isCorrect) {
+                          buttonClass += " bg-green-200 border-green-400";
+                        } else if (isSelected && !isCorrect) {
+                          buttonClass += " bg-red-200 border-red-400";
+                        }
+                      } else if (isSelected) {
+                        buttonClass += " bg-blue-100 border-blue-300";
+                      }
+                      return (
+                        <button key={index} onClick={() => !isAnswerChecked && setSelectedAnswer(option)} disabled={isAnswerChecked} className={buttonClass}>
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isAnswerChecked && (
+                    <div className="p-3 bg-gray-100 rounded-lg text-sm">
+                      <p><strong>정답:</strong> {quizData[currentQuestionIndex].answer}</p>
+                      <p><strong>해설:</strong> {quizData[currentQuestionIndex].explanation}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p>퀴즈를 불러오지 못했습니다.</p>
+              )}
+            </div>
+            <footer className="p-4 border-t flex justify-end gap-2">
+                {!isAnswerChecked ? (
+                    <button onClick={handleAnswerCheck} disabled={!selectedAnswer} className="btn btn-primary">확인</button>
+                ) : (
+                    <>
+                        <button onClick={handleRetryQuiz} className="btn btn-secondary">다시 풀기</button>
+                        {currentQuestionIndex < quizData.length - 1 ? (
+                            <button onClick={handleNextQuestion} className="btn btn-primary">다음</button>
+                        ) : (
+                            <button onClick={() => setIsQuizModalOpen(false)} className="btn btn-success">닫기</button>
+                        )}
+                    </>
+                )}
+            </footer>
+          </div>
+        </div>
+      )}
     </>
   );
 }

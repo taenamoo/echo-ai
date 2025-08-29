@@ -6,13 +6,10 @@ import { PutCommand, DeleteCommand, GetCommand, BatchWriteCommand, QueryCommand 
 const TABLE_NAME = STUDY_TABLE_NAME;
 
 // 특정 스터디 노트를 수정하는 핸들러 (PUT)
-export async function PUT(req: NextRequest) { // [수정] params 제거
+export async function PUT(req: NextRequest) {
   try {
-    // [수정] req.nextUrl에서 id를 직접 추출하여 오류를 해결합니다.
     const id = req.nextUrl.pathname.split('/').pop();
-    if (!id) {
-        return NextResponse.json({ message: 'ID가 필요합니다.' }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ message: 'ID가 필요합니다.' }, { status: 400 });
 
     const token = req.headers.get('authorization')?.split(' ')[1];
     if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
@@ -21,8 +18,6 @@ export async function PUT(req: NextRequest) { // [수정] params 제거
     if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
 
     const body = await req.json();
-
-    // DB에 저장하기 전에 불필요한 'children' 속성을 제거합니다.
     delete body.children;
 
     if (!body.title && body.content === undefined) {
@@ -31,12 +26,10 @@ export async function PUT(req: NextRequest) { // [수정] params 제거
 
     const { Item } = await docClient.send(new GetCommand({
         TableName: TABLE_NAME,
-        Key: { user_id: decoded.userId, study_id: id } // [수정] params.id -> id
+        Key: { user_id: decoded.userId, study_id: id }
     }));
 
-    // 기존 데이터와 새로 받은 데이터를 합쳐서 최종 저장할 객체를 만듭니다.
-    const updatedStudy = { ...Item, ...body, user_id: decoded.userId, study_id: id }; // [수정] params.id -> id
-
+    const updatedStudy = { ...Item, ...body, user_id: decoded.userId, study_id: id };
 
     await docClient.send(new PutCommand({
       TableName: TABLE_NAME,
@@ -52,9 +45,8 @@ export async function PUT(req: NextRequest) { // [수정] params 제거
 }
 
 // 특정 스터디 노트를 삭제하는 핸들러 (DELETE)
-export async function DELETE(req: NextRequest) { // [수정] params 제거
+export async function DELETE(req: NextRequest) {
   try {
-    // [수정] req.nextUrl에서 id를 직접 추출하여 오류를 해결합니다.
     const studyIdToDelete = req.nextUrl.pathname.split('/').pop();
     if (!studyIdToDelete) {
         return NextResponse.json({ message: 'ID가 필요합니다.' }, { status: 400 });
@@ -68,12 +60,12 @@ export async function DELETE(req: NextRequest) { // [수정] params 제거
 
     const userId = decoded.userId;
 
-    const scanCommand = new QueryCommand({
+    const queryCommand = new QueryCommand({
         TableName: TABLE_NAME,
         KeyConditionExpression: 'user_id = :userId',
         ExpressionAttributeValues: { ':userId': userId },
     });
-    const { Items } = await docClient.send(scanCommand);
+    const { Items } = await docClient.send(queryCommand);
     const childrenToDelete = (Items || []).filter(item => item.parent_id === studyIdToDelete);
 
     const deleteRequests = [{
