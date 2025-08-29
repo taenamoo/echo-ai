@@ -8,9 +8,10 @@
             "extensions": [
                 "dbaeumer.vscode-eslint",
                 "bradlc.vscode-tailwindcss",
-                "GitHub.copilot",
-                "GitHub.copilot-chat",
-                "esbenp.prettier-vscode"
+                "google.geminicodeassist",
+                "esbenp.prettier-vscode",
+                "eamodio.gitlens",
+                "oderwat.indent-rainbow"
             ]
         }
     },

@@ -1,0 +1,20 @@
+name: 'Gemini CLI Basic Example'
+
+on:
+  workflow_dispatch: # 수동 실행을 위한 트리거
+
+jobs:
+  run-gemini:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      - name: 'Run Gemini CLI'
+        uses: 'google-github-actions/run-gemini-cli@v1'
+        with:
+          gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+          prompt: '이 저장소의 목적을 한 문단으로 요약해줘.'

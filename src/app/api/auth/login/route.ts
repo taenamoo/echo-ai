@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json();
 
+    // 1. 입력값 검증
     if (!email || !password) {
       return NextResponse.json(
         { message: '이메일과 비밀번호를 입력해주세요.' },
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 2. DynamoDB에서 이메일로 사용자 조회 (GSI 활용)
     const queryCommand = new QueryCommand({
       TableName: DYNAMODB_TABLE_NAME,
       IndexName: 'EmailIndex',
@@ -23,7 +25,10 @@ export async function POST(req: NextRequest) {
     });
 
     const { Items } = await docClient.send(queryCommand);
+
+    // 3. 사용자 존재 여부 및 비밀번호 일치 확인
     if (!Items || Items.length === 0) {
+      // 사용자가 존재하지 않아도, 보안을 위해 동일한 오류 메시지 반환
       return NextResponse.json(
         { message: '이메일 또는 비밀번호가 올바르지 않습니다.' },
         { status: 401 }
@@ -31,11 +36,11 @@ export async function POST(req: NextRequest) {
     }
 
     const user = Items[0];
-
     const isPasswordValid = await comparePassword(
       password,
       user.hashedPassword
     );
+
     if (!isPasswordValid) {
       return NextResponse.json(
         { message: '이메일 또는 비밀번호가 올바르지 않습니다.' },
@@ -43,11 +48,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 4. Access Token 생성
     const accessToken = generateAccessToken(user.userId, user.email);
 
+    // 5. 로그인 성공 응답 반환
     return NextResponse.json({
       userId: user.userId,
       email: user.email,
+      name: user.name || '',
       accessToken,
     });
   } catch (error) {

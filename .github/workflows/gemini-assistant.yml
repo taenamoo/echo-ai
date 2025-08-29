@@ -1,0 +1,21 @@
+name: 'Gemini CLI Assistant'
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  assist:
+    if: startsWith(github.event.comment.body, '@gemini-cli')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      id-token: write
+      contents: write
+    steps:
+      - uses: 'google-github-actions/run-gemini-cli@v1'
+        with:
+          gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
+          gcp_service_account: '${{ vars.GCP_SERVICE_ACCOUNT }}'
+          prompt: '${{ github.event.comment.body }}'
