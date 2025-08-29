@@ -51,3 +51,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Ignore alternate data stream files from Windows
+*:Zone.Identifier
+*:mshield
