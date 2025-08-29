@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import docClient, { DYNAMODB_TABLE_NAME } from '@/lib/aws/dynamodb';
+import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import { QueryCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { hashPassword } from '@/lib/auth/password';
 import { generateAccessToken } from '@/lib/auth/token';
@@ -9,7 +9,6 @@ export async function POST(req: NextRequest) {
   try {
     const { email, password, name } = await req.json();
 
-    // Validate inputs
     if (!email || !password) {
       return NextResponse.json(
         { message: '이메일과 비밀번호를 입력해주세요.' },
@@ -17,9 +16,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already exists
     const queryCommand = new QueryCommand({
-      TableName: DYNAMODB_TABLE_NAME,
+      TableName: MAIN_TABLE_NAME, // 수정된 부분
       IndexName: 'EmailIndex',
       KeyConditionExpression: 'email = :email',
       ExpressionAttributeValues: { ':email': email },
@@ -33,12 +31,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create new user
     const userId = uuidv4();
     const hashedPassword = await hashPassword(password);
 
     const putCommand = new PutCommand({
-      TableName: DYNAMODB_TABLE_NAME,
+      TableName: MAIN_TABLE_NAME, // 수정된 부분
       Item: {
         PK: `USER#${userId}`,
         SK: `PROFILE#${userId}`,
@@ -52,7 +49,6 @@ export async function POST(req: NextRequest) {
 
     await docClient.send(putCommand);
 
-    // Generate access token
     const accessToken = generateAccessToken(userId, email);
 
     return NextResponse.json(
