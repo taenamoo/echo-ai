@@ -1,118 +1,95 @@
-import { DYNAMODB_TABLE_NAME } from '@/lib/aws/dynamodb';
-import {
-  DynamoDBClient,
-  CreateTableCommand,
-  ListTablesCommand,
-} from '@aws-sdk/client-dynamodb';
+// [추가] dotenv를 사용하여 .env.local 파일의 환경 변수를 불러옵니다.
+import 'dotenv/config';
+import { resolve } from 'path';
 
-// Local DynamoDB endpoint for development
-const dynamoDBClient = new DynamoDBClient({
+require('dotenv').config({ path: resolve(process.cwd(), '.env.local') });
+
+
+import { CreateTableCommand, DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb';
+
+// [수정] 스크립트 내에서 테이블 이름을 직접 정의하여 의존성을 제거합니다.
+const MAIN_TABLE_NAME = 'EchoAI-Main-Table';
+const STUDY_TABLE_NAME = 'EchoAi-Studies';
+
+const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'ap-northeast-2',
   endpoint: process.env.DYNAMODB_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
   },
 });
 
-const TABLE_NAME = DYNAMODB_TABLE_NAME;
-
-/**
- * Checks if the DynamoDB table exists
- * @param tableName The name of the DynamoDB table to create.
- * @returns
- */
-const tableExists = async (tableName: string): Promise<boolean> => {
-  try {
-    const response = await dynamoDBClient.send(new ListTablesCommand({}));
-    return response.TableNames?.includes(tableName) || false;
-  } catch (error) {
-    console.error('Error checking table existence:', error);
-    return false;
+async function createTableIfNotExists(tableName: string, keySchema: any[], attributeDefinitions: any[], gsis: any[] = []) {
+  // tableName이 유효한지 확인합니다.
+  if (!tableName) {
+    console.error("Error: Table name is undefined. Skipping table creation.");
+    return;
   }
-};
+  try {
+    const { TableNames } = await client.send(new ListTablesCommand({}));
+    if (TableNames && TableNames.includes(tableName)) {
+      console.log(`Table "${tableName}" already exists.`);
+      return;
+    }
 
-/**
- * Create a Main DynamoDB table
- */
-const createMainTable = async () => {
-  const command = new CreateTableCommand({
-    TableName: TABLE_NAME,
-    KeySchema: [
-      { AttributeName: 'PK', KeyType: 'HASH' }, // Partition key
-      { AttributeName: 'SK', KeyType: 'RANGE' }, // Sort key
+    console.log(`Creating table: ${tableName}`);
+    const command = new CreateTableCommand({
+      TableName: tableName,
+      KeySchema: keySchema,
+      AttributeDefinitions: attributeDefinitions,
+      GlobalSecondaryIndexes: gsis.length > 0 ? gsis : undefined,
+      ProvisionedThroughput: {
+        ReadCapacityUnits: 1,
+        WriteCapacityUnits: 1,
+      },
+    });
+    await client.send(command);
+    console.log(`Table "${tableName}" created successfully.`);
+  } catch (err) {
+    console.error(`Error creating table "${tableName}":`, err);
+  }
+}
+
+async function main() {
+  console.log('Starting migration to create DynamoDB tables...');
+
+  // 1. EchoAI-Main-Table 생성
+  await createTableIfNotExists(
+    MAIN_TABLE_NAME,
+    [
+      { AttributeName: 'PK', KeyType: 'HASH' },
+      { AttributeName: 'SK', KeyType: 'RANGE' },
     ],
-    AttributeDefinitions: [
-      { AttributeName: 'PK', AttributeType: 'S' }, // String type
-      { AttributeName: 'SK', AttributeType: 'S' }, // String type
-      { AttributeName: 'email', AttributeType: 'S' }, // String type
+    [
+      { AttributeName: 'PK', AttributeType: 'S' },
+      { AttributeName: 'SK', AttributeType: 'S' },
+      { AttributeName: 'email', AttributeType: 'S' },
     ],
-    GlobalSecondaryIndexes: [
+    [
       {
         IndexName: 'EmailIndex',
-        KeySchema: [
-          { AttributeName: 'email', KeyType: 'HASH' }, // Partition key
-        ],
-        Projection: {
-          ProjectionType: 'ALL',
-        },
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5,
-        },
+        KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+        ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
       },
+    ]
+  );
+
+  // 2. EchoAi-Studies 테이블 생성
+  await createTableIfNotExists(
+    STUDY_TABLE_NAME,
+    [
+        { AttributeName: 'user_id', KeyType: 'HASH' },
+        { AttributeName: 'study_id', KeyType: 'RANGE' },
     ],
-    ProvisionedThroughput: {
-      ReadCapacityUnits: 5,
-      WriteCapacityUnits: 5,
-    },
-  });
+    [
+        { AttributeName: 'user_id', AttributeType: 'S' },
+        { AttributeName: 'study_id', AttributeType: 'S' },
+    ]
+  );
 
-  try {
-    const response = await dynamoDBClient.send(command);
-    console.log('Table created successfully:', response);
-  } catch (error) {
-    console.error('Error creating table:', error);
-  }
-};
+  console.log('DynamoDB migration finished.');
+}
 
-/**
- * TO DO: Create Initial data in DynamoDB table
- */
-const sendInitialData = async () => {
-  // Implement logic to send initial data to the DynamoDB table
-  console.log('Sending initial data to the table...');
-};
-
-/**
- * Main migration function
- */
-const runMigration = async () => {
-  console.log('Starting migration to create DynamoDB table...');
-
-  const exists = await tableExists(TABLE_NAME);
-  if (exists) {
-    console.log(`Table ${TABLE_NAME} already exists.`);
-    return;
-  }
-
-  try {
-    console.log(`Creating table: ${TABLE_NAME}`);
-    await createMainTable();
-
-    console.log('Sending initial data to the table...');
-    await sendInitialData();
-  } catch (error) {
-    console.error('Error during migration:', error);
-    return;
-  }
-
-  console.log('Migration completed successfully.');
-};
-
-runMigration()
-  .then(() => console.log('Migration script finished.'))
-  .catch((error) => {
-    console.error('Error in migration script:', error);
-    process.exit(1);
-  });
+main();

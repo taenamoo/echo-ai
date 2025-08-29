@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import docClient, { DYNAMODB_TABLE_NAME } from '@/lib/aws/dynamodb';
+import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { comparePassword } from '@/lib/auth/password';
 import { generateAccessToken } from '@/lib/auth/token';
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const queryCommand = new QueryCommand({
-      TableName: DYNAMODB_TABLE_NAME,
+      TableName: MAIN_TABLE_NAME, // 수정된 부분
       IndexName: 'EmailIndex',
       KeyConditionExpression: 'email = :email',
       ExpressionAttributeValues: { ':email': email },
