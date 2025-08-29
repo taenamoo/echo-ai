@@ -12,10 +12,9 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: 'google-github-actions/run-gemini-cli@v1'
+      - uses: 'google-github-actions/run-gemini-cli@main'
         with:
-          gcp_workload_identity_provider: '${{ vars.GCP_WIF_PROVIDER }}'
-          gcp_service_account: '${{ vars.GCP_SERVICE_ACCOUNT }}'
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           prompt: |
             당신은 이 프로젝트의 관리자입니다. 새로 등록된 이 이슈를 분석해주세요.
             이슈의 내용을 바탕으로 다음 레이블 중 가장 적절한 것을 하나만 선택하여 적용해주세요: 'bug', 'feature-request', 'documentation', 'question'.
