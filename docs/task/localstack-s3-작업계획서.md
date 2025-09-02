@@ -1,4 +1,5 @@
 ## Gemini-CLI 작업 계획서: LocalStack/DynamoDB 초기화 + S3 업로드 연동
+상태: 완료 (참고용)
 
 ### 1\. 목표
 
