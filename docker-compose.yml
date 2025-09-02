@@ -79,8 +79,8 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-dummy}
       DYNAMODB_ENDPOINT: http://dynamodb-local:8998
     volumes:
-      - ./setting/bash/dynamodb-init.sh:/init/dynamodb-init.sh:ro
-    entrypoint: ["sh", "/init/dynamodb-init.sh"]
+      - ./setting/bash/dynamodb-init.sh:/usr/local/bin/dynamodb-init.sh:ro
+    entrypoint: ["sh", "/usr/local/bin/dynamodb-init.sh"]
     networks:
       - echo-ai-net
     restart: "no"
