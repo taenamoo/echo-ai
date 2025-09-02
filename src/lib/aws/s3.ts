@@ -5,18 +5,15 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const s3Config: S3ClientConfig = {
   region: process.env.AWS_REGION || 'ap-northeast-2',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
   },
 };
 
 if (isDevelopment) {
-  s3Config.endpoint = 'http://localhost:4566';
-  s3Config.region = 'us-east-1';
-  s3Config.credentials = {
-    accessKeyId: 'dummy',
-    secretAccessKey: 'dummy',
-  };
+  // Prefer explicit endpoint if provided (e.g., set in docker-compose for container networking)
+  s3Config.endpoint = process.env.S3_ENDPOINT || 'http://localstack:4566';
+  s3Config.region = process.env.AWS_REGION || 'ap-northeast-2';
   s3Config.forcePathStyle = true;
 }
 
