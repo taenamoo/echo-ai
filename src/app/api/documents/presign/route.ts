@@ -7,6 +7,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 const BUCKET = process.env.S3_BUCKET_NAME;
 const REGION = process.env.AWS_REGION || 'ap-northeast-2';
 const PUBLIC_ENDPOINT = process.env.S3_PUBLIC_ENDPOINT; // e.g., http://localhost:4566 for LocalStack (browser-accessible)
+const IS_DEV = process.env.NODE_ENV === 'development';
 
 const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 25);
 const MAX_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
@@ -21,7 +22,9 @@ const ALLOWED_TYPES = [
 ];
 
 function buildPresignClient() {
-  const endpoint = PUBLIC_ENDPOINT || process.env.S3_ENDPOINT; // fallback to internal when PUBLIC not provided
+  // In development, prefer PUBLIC endpoint so the browser can use the URL directly (e.g., localhost:4566)
+  // In other environments, default to internal endpoint if provided, otherwise AWS default resolution
+  const endpoint = IS_DEV ? (PUBLIC_ENDPOINT || process.env.S3_ENDPOINT) : process.env.S3_ENDPOINT;
   const credentials = {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
@@ -31,6 +34,14 @@ function buildPresignClient() {
   // Path-style ensures LocalStack compatibility
   cfg.forcePathStyle = true;
   return new S3Client(cfg);
+}
+
+function isValidFilename(name: string): boolean {
+  // Basic guard: disallow path separators and control characters
+  if (!name || name.length > 256) return false;
+  if (name.includes('/') || name.includes('\\')) return false;
+  // Disallow invisible control chars
+  return /^[\x20-\x7E\x80-\uFFFF]+$/.test(name);
 }
 
 export async function POST(req: NextRequest) {
@@ -53,6 +64,9 @@ export async function POST(req: NextRequest) {
 
     if (!filename || !contentType) {
       return NextResponse.json({ message: 'filename과 contentType은 필수입니다.' }, { status: 400 });
+    }
+    if (!isValidFilename(filename)) {
+      return NextResponse.json({ message: '허용되지 않는 파일 이름입니다.' }, { status: 400 });
     }
     if (!ALLOWED_TYPES.includes(contentType)) {
       return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });
@@ -80,10 +94,11 @@ export async function POST(req: NextRequest) {
       key,
       expiration: expiresIn,
       documentId,
+      method: 'PUT',
+      requiredHeaders: { 'Content-Type': contentType },
     });
   } catch (err: any) {
     console.error('Presign Error:', err);
     return NextResponse.json({ message: 'Pre-signed URL 생성 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
-
