@@ -20,3 +20,8 @@ else
   echo "[LocalStack Init] Bucket created: $BUCKET"
 fi
 
+# Set permissive CORS for development (idempotent)
+echo "[LocalStack Init] Applying CORS configuration for bucket: $BUCKET"
+awslocal s3api put-bucket-cors \
+  --bucket "$BUCKET" \
+  --cors-configuration 'CORSRules=[{AllowedOrigins=["*"],AllowedMethods=["PUT","GET","HEAD"],AllowedHeaders=["*"],ExposeHeaders=["ETag"],MaxAgeSeconds=300}]'
