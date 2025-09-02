@@ -23,6 +23,8 @@ services:
       - 8.8.8.8
     depends_on:
       - dynamodb-local
+      - localstack
+      - dynamodb-init
     networks:
       - echo-ai-net
 
@@ -49,6 +51,38 @@ services:
       - dynamodb-local
     networks:
       - echo-ai-net
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: echo-ai-localstack
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    environment:
+      - SERVICES=s3
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-test-bucket}
+    volumes:
+      - "./setting/bash/localstack-init-s3.sh:/etc/localstack/init/ready.d/10-init-s3.sh:ro"
+    networks:
+      - echo-ai-net
+
+  dynamodb-init:
+    image: amazon/aws-cli:2
+    container_name: echo-ai-dynamodb-init
+    depends_on:
+      - dynamodb-local
+    environment:
+      AWS_REGION: ${AWS_REGION:-ap-northeast-2}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-dummy}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-dummy}
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8998
+    volumes:
+      - ./setting/bash/dynamodb-init.sh:/init/dynamodb-init.sh:ro
+    entrypoint: ["sh", "/init/dynamodb-init.sh"]
+    networks:
+      - echo-ai-net
+    restart: "no"
 
 networks:
   echo-ai-net:
