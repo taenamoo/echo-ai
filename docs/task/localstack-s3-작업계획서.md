@@ -136,7 +136,7 @@
 
   ```yaml
   dynamodb-init:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:latest
     container_name: echo-ai-dynamodb-init
     depends_on:
       - dynamodb-local
@@ -151,6 +151,8 @@
     networks:
       - echo-ai-net
     restart: "no"
+
+참고: `amazon/aws-cli` 이미지는 `latest` 또는 구체 버전 태그(예: `2.17.16`)를 사용할 수 있습니다. `:2` 태그는 존재하지 않으므로 사용하지 마세요.
   ```
 
 -----

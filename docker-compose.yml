@@ -68,7 +68,7 @@ services:
       - echo-ai-net
 
   dynamodb-init:
-    image: amazon/aws-cli:2
+    image: amazon/aws-cli:latest
     container_name: echo-ai-dynamodb-init
     depends_on:
       - dynamodb-local
