@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/token';
 import { v4 as uuidv4 } from 'uuid';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 
 const BUCKET = process.env.S3_BUCKET_NAME;
 const REGION = process.env.AWS_REGION || 'ap-northeast-2';
@@ -29,19 +29,18 @@ function buildPresignClient() {
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
   };
-  const cfg: any = { region: REGION, credentials };
-  if (endpoint) cfg.endpoint = endpoint;
+  const cfg: S3ClientConfig = { region: REGION, credentials };
+  if (endpoint) (cfg as any).endpoint = endpoint;
   // Path-style ensures LocalStack compatibility
-  cfg.forcePathStyle = true;
+  (cfg as any).forcePathStyle = true;
   return new S3Client(cfg);
 }
 
 function isValidFilename(name: string): boolean {
-  // Basic guard: disallow path separators and control characters
-  if (!name || name.length > 256) return false;
-  if (name.includes('/') || name.includes('\\')) return false;
-  // Disallow invisible control chars
-  return /^[\x20-\x7E\x80-\uFFFF]+$/.test(name);
+  // Restrictive allowlist: alphanumerics, dot, underscore, hyphen only
+  if (!name || name.length > 128) return false;
+  if (name.startsWith('.')) return false; // avoid hidden files
+  return /^[A-Za-z0-9._-]+$/.test(name);
 }
 
 export async function POST(req: NextRequest) {
@@ -79,23 +78,28 @@ export async function POST(req: NextRequest) {
     const key = `uploads/${userId}/${documentId}/${filename}`;
 
     const client = buildPresignClient();
-    const command = new PutObjectCommand({
-      Bucket: BUCKET,
+    const expiresIn = 600; // seconds
+    const { url, fields } = await createPresignedPost(client, {
+      Bucket: BUCKET!,
       Key: key,
-      ContentType: contentType,
+      Conditions: [
+        ['content-length-range', 0, MAX_BYTES],
+        { 'Content-Type': contentType },
+      ],
+      Fields: {
+        'Content-Type': contentType,
+      },
+      Expires: Math.floor(expiresIn / 1),
     });
 
-    const expiresIn = 600; // 10 minutes
-    const uploadUrl = await getSignedUrl(client, command, { expiresIn });
-
     return NextResponse.json({
-      uploadUrl,
+      method: 'POST',
+      url,
+      fields,
       bucket: BUCKET,
       key,
       expiration: expiresIn,
       documentId,
-      method: 'PUT',
-      requiredHeaders: { 'Content-Type': contentType },
     });
   } catch (err: any) {
     console.error('Presign Error:', err);
