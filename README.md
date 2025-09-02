@@ -1,24 +1,42 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Local Dev (Docker + LocalStack + DynamoDB Local)
 
-First, run the development server:
+1) Copy env file
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2) Start stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up -d --build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Services
+- App: http://localhost:3001
+- DynamoDB Local: http://localhost:8998
+- DynamoDB Admin UI: http://localhost:8999
+- LocalStack (S3): http://localhost:4566
+
+3) Verify resources
+
+```bash
+# LocalStack logs
+docker logs echo-ai-localstack | grep 'LocalStack Init'
+
+# S3 bucket in LocalStack (inside container)
+docker exec -it echo-ai-localstack awslocal s3 ls
+
+# DynamoDB tables
+aws --endpoint-url http://localhost:8998 dynamodb list-tables
+```
+
+Notes
+- S3 bucket name is from `.env.local` `S3_BUCKET_NAME`.
+- On first boot, DynamoDB tables are auto-created by `dynamodb-init` service.
+- If ports are in use, adjust them in `docker-compose.yml`.
 
 ## Learn More
 
