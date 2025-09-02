@@ -72,6 +72,21 @@
 - `curl -X PUT -T ./README.md -H 'Content-Type: text/plain' "<uploadUrl>"`
 - `docker exec -it echo-ai-localstack awslocal s3 ls s3://$S3_BUCKET_NAME/uploads/<userId>/<documentId>/`
 
+
+Login for get token
+```
+curl -s -X POST http://localhost:3001/api/auth/login \
+-H "Content-Type: application/json" \
+-d '{ "email":"test@example.com", "password":"12345678" }'
+```
+
+Request presign url
+```
+curl -s -X POST http://localhost:3001/api/documents/presign \
+-H "Authorization: Bearer $TOKEN" \
+-H "Content-Type: application/json" \
+-d '{"filename":"test.txt","contentType":"text/plain"}'
+```
 -----
 
 ### 4. 후속 연계 (다음 작업서 초안)
