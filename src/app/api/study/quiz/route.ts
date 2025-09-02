@@ -1,88 +1,79 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth/token';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI, SchemaType, GenerationConfig } from '@google/generative-ai';
 
+// Google Generative AI 클라이언트를 초기화합니다.
+// API 키는 환경 변수에서 안전하게 불러옵니다.
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-// AI가 생성할 퀴즈 데이터의 타입을 정의합니다.
-interface Quiz {
-  question: string;
-  options: string[];
-  answer: string;
-  explanation: string;
-}
-
-async function generateQuiz(context: string): Promise<Quiz[]> {
+export async function POST(request: Request) {
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    const prompt = `
-      당신은 React 초보 개발자를 위한 퀴즈 출제자입니다.
-      아래 주어진 [학습 내용]을 바탕으로, 객관식 퀴즈를 1개에서 5개 사이로 생성해주세요.
+    // 요청 본문에서 퀴즈 생성에 필요한 내용과 문항 수를 추출합니다.
+    const { content, count } = await request.json();
+    const questionCount = count || 5; // count가 없으면 기본 5문항으로 설정합니다.
 
-      - 각 퀴즈는 질문(question), 4개의 보기(options), 정답(answer), 그리고 해설(explanation)을 포함해야 합니다.
-      - 정답(answer)은 4개의 보기(options) 중 하나와 정확히 일치해야 합니다.
-      - 질문은 초보자가 학습 내용을 잘 이해했는지 확인할 수 있도록 핵심 개념을 다루어야 합니다.
-      - 답변은 반드시 한국어로, 아래와 같은 JSON 배열 형식을 따라야 합니다.
+    if (!content) {
+      return NextResponse.json({ error: '퀴즈 내용을 찾을 수 없습니다.' }, { status: 400 });
+    }
 
-      [출력 형식 예시]
-      \`\`\`json
-      [
-        {
-          "question": "React에서 컴포넌트의 상태를 관리하기 위해 사용되는 Hook은 무엇인가요?",
-          "options": ["useState", "useEffect", "useContext", "useReducer"],
-          "answer": "useState",
-          "explanation": "useState는 함수형 컴포넌트에서 상태를 추가할 수 있게 해주는 Hook입니다."
+    // AI에게 JSON 형식의 응답을 요청하기 위한 설정 (타입 명시)
+    const generationConfig: GenerationConfig = {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: SchemaType.OBJECT,
+        properties: {
+          quiz: {
+            type: SchemaType.ARRAY,
+            description: `생성된 퀴즈 질문 리스트 (${questionCount}개)`,
+            items: {
+              type: SchemaType.OBJECT,
+              properties: {
+                question: { type: SchemaType.STRING, description: "퀴즈 질문" },
+                options: {
+                  type: SchemaType.ARRAY,
+                  description: "4개의 선택지",
+                  items: { type: SchemaType.STRING }
+                },
+                answer: { type: SchemaType.STRING, description: "정답" },
+                explanation: { type: SchemaType.STRING, description: "정답에 대한 간결한 해설" }
+              },
+              required: ["question", "options", "answer", "explanation"]
+            }
+          }
         },
-        {
-          "question": "...",
-          "options": ["...", "...", "...", "..."],
-          "answer": "...",
-          "explanation": "..."
-        }
-      ]
-      \`\`\`
+        required: ["quiz"]
+      },
+    };
 
-      [학습 내용]
-      ${context}
+    // AI 모델을 선택합니다.
+    const model = genAI.getGenerativeModel({
+        model: "gemini-2.5-flash-preview-05-20",
+    });
+
+    // AI에게 전달할 프롬프트를 동적으로 구성합니다.
+    const prompt = `
+      당신은 React.js 전문가입니다. 다음 내용을 기반으로 객관식 퀴즈 ${questionCount}개를 생성해주세요.
+      각 질문에는 4개의 선택지가 있어야 하며, 명확한 정답과 간단한 해설이 반드시 포함되어야 합니다.
+      결과는 JSON 형식으로만 응답해주세요.
+
+      퀴즈 내용: "${content}"
     `;
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
+
+    // AI 모델에 퀴즈 생성을 요청합니다.
+    const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig,
+    });
     
-    // [수정] AI가 생성한 텍스트에서 JSON 부분만 더 안정적으로 추출하고 파싱합니다.
-    const textResponse = response.text();
-    const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*?\}\s*\]/);
-    if (!jsonMatch) {
-        throw new Error("Valid JSON array not found in AI response.");
-    }
-    return JSON.parse(jsonMatch[0]);
+    const response = result.response;
+    const jsonText = response.text();
+    const quizData = JSON.parse(jsonText);
+
+    // 생성된 퀴즈 데이터를 클라이언트에 반환합니다.
+    return NextResponse.json(quizData);
 
   } catch (error) {
-    console.error("AI Quiz Generation Error:", error);
-    return []; // 오류 발생 시 빈 배열 반환
+    console.error('API 라우트 처리 중 오류 발생:', error);
+    return NextResponse.json({ error: '퀴즈 생성에 실패했습니다.' }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-
-    const { content, good_example, bad_example } = await req.json();
-    const context = `내용: ${content}\n좋은 예시: ${good_example}\n나쁜 예시: ${bad_example}`;
-
-    const quizData = await generateQuiz(context);
-    
-    if (quizData.length === 0) {
-        return NextResponse.json({ error: "퀴즈 생성에 실패했습니다." }, { status: 500 });
-    }
-
-    return NextResponse.json({ quiz: quizData });
-
-  } catch (error) {
-    console.error('AI Quiz API Error:', error);
-    return NextResponse.json({ message: 'API 처리 중 오류가 발생했습니다.' }, { status: 500 });
-  }
-}
