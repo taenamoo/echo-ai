@@ -4,9 +4,13 @@ import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { getUserIdFromRequest } from '@/lib/api/auth';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 
 const BUCKET = process.env.S3_BUCKET_NAME as string | undefined;
+const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
+const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 45000);
+const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
+const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
 
 type DocumentItem = {
   PK: string;
@@ -107,11 +111,28 @@ async function summarizeText(text: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY || '';
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
   const prompt = `아래 문서 내용을 한국어로 간결하게 요약해 주세요.\n\n---\n${text}\n---\n\n요약:`;
-  const result = await model.generateContent(prompt);
-  const resp = await result.response;
-  return resp.text();
+
+  const generationConfig: GenerationConfig = {
+    maxOutputTokens: SUMMARIZE_MAX_OUTPUT_TOKENS,
+  };
+
+  const work = async () => {
+    const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
+    const resp = await result.response;
+    return resp.text();
+  };
+
+  // Soft timeout wrapper (does not cancel underlying request, but limits server wait time)
+  const timeoutPromise = new Promise<string>((_, reject) => {
+    const id = setTimeout(() => {
+      clearTimeout(id);
+      reject(new Error('Summarization timed out'));
+    }, SUMMARIZE_TIMEOUT_MS);
+  });
+
+  return Promise.race([work(), timeoutPromise]) as Promise<string>;
 }
 
 export async function POST(
@@ -132,6 +153,11 @@ export async function POST(
 
     await updateStatus(userId, documentId, 'PROCESSING');
 
+    // Prevent concurrent summarization when already processing
+    if ((doc.status || '').toUpperCase() === 'PROCESSING') {
+      return NextResponse.json({ message: '해당 문서는 요약 처리 중입니다.' }, { status: 409 });
+    }
+
     const { text, contentType } = await getObjectText(BUCKET, doc.s3Key);
 
     const type = contentType || doc.filetype || '';
@@ -145,7 +171,8 @@ export async function POST(
       return NextResponse.json({ message: '요약할 텍스트가 비어 있습니다.' }, { status: 400 });
     }
 
-    const summary = await summarizeText(text);
+    const truncated = text.length > SUMMARIZE_MAX_CHARS ? text.slice(0, SUMMARIZE_MAX_CHARS) : text;
+    const summary = await summarizeText(truncated);
 
     await updateStatus(userId, documentId, 'COMPLETE', { summaryText: summary });
 
@@ -164,4 +191,3 @@ export async function POST(
     return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
-
