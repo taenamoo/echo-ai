@@ -5,6 +5,7 @@ import { s3Client } from '@/lib/aws/s3';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { getUserIdFromRequest } from '@/lib/api/auth';
 import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
+import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
 
 const BUCKET = process.env.S3_BUCKET_NAME as string | undefined;
 const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
@@ -103,8 +104,9 @@ async function updateStatus(
 async function getObjectText(bucket: string, key: string): Promise<{ text: string; contentType?: string }> {
   const obj = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
   const contentType = obj.ContentType;
-  const bodyText = await streamToString(obj.Body as any);
-  return { text: bodyText, contentType };
+  const buf = await streamToBuffer(obj.Body as any);
+  const text = await extractTextFromBuffer(buf, contentType);
+  return { text: text || '', contentType };
 }
 
 async function summarizeText(text: string): Promise<string> {
@@ -161,14 +163,9 @@ export async function POST(
     const { text, contentType } = await getObjectText(BUCKET, doc.s3Key);
 
     const type = contentType || doc.filetype || '';
-    const isTextLike = type.startsWith('text/') || type.includes('markdown') || !type;
-    if (!isTextLike) {
-      await updateStatus(userId, documentId, 'FAILED');
-      return NextResponse.json({ message: `현재 파일 형식은 요약을 지원하지 않습니다: ${type || 'unknown'}` }, { status: 415 });
-    }
     if (!text || text.trim().length === 0) {
       await updateStatus(userId, documentId, 'FAILED');
-      return NextResponse.json({ message: '요약할 텍스트가 비어 있습니다.' }, { status: 400 });
+      return NextResponse.json({ message: `요약할 텍스트를 추출하지 못했습니다. 형식: ${type || 'unknown'}` }, { status: 415 });
     }
 
     const truncated = text.length > SUMMARIZE_MAX_CHARS ? text.slice(0, SUMMARIZE_MAX_CHARS) : text;
