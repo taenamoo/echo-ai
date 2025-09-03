@@ -47,17 +47,45 @@ export default function DocumentsPage() {
 
     try {
       const baseUrl = window.location.origin;
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const uploadResponse = await axios.post(`${baseUrl}/api/documents`, formData, {
+      // 1) Presign 요청 (브라우저 직접 업로드)
+      const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
+        filename: file.name,
+        contentType: file.type || 'application/octet-stream',
+        size: file.size,
+      }, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${accessToken}`
-        },
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
       });
 
-      const { documentId } = uploadResponse.data;
+      const { url, fields, key, documentId } = presignRes.data as {
+        url: string;
+        fields: Record<string, string>;
+        key: string;
+        documentId: string;
+      };
+
+      // 2) S3에 직접 업로드 (Presigned POST)
+      const s3Form = new FormData();
+      Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
+      s3Form.append('file', file);
+      await axios.post(url, s3Form);
+
+      // 3) 메타데이터 저장 (DB 레코드 생성)
+      await axios.post(`${baseUrl}/api/documents`, {
+        key,
+        filename: file.name,
+        filetype: file.type,
+        filesize: file.size,
+        documentId,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
       setStatus('summarizing');
 
       const summarizeResponse = await axios.post(`${baseUrl}/api/documents/${documentId}/summarize`, {}, {

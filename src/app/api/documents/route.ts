@@ -16,15 +16,57 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
     }
 
+    const contentType = req.headers.get('content-type') || '';
+
+    // Branch A: JSON metadata save (presigned upload flow)
+    if (contentType.includes('application/json')) {
+      const body = await req.json().catch(() => null);
+      const key = body?.key as string | undefined;
+      const filename = body?.filename as string | undefined;
+      const filetype = body?.filetype as string | undefined;
+      const filesize = Number(body?.filesize || 0);
+      const providedDocId = body?.documentId as string | undefined;
+
+      if (!key || !filename) {
+        return NextResponse.json({ message: 'key와 filename은 필수입니다.' }, { status: 400 });
+      }
+
+      // Expecting key like: uploads/{userId}/{documentId}/{filename}
+      const parts = key.split('/');
+      if (parts.length < 4 || parts[0] !== 'uploads' || parts[1] !== userId) {
+        return NextResponse.json({ message: 'key 형식이 올바르지 않습니다.' }, { status: 400 });
+      }
+      const documentId = providedDocId || parts[2];
+      if (!documentId) {
+        return NextResponse.json({ message: 'documentId를 추출할 수 없습니다.' }, { status: 400 });
+      }
+
+      const item = {
+        PK: `USER#${userId}`,
+        SK: `DOC#${documentId}`,
+        userId,
+        documentId,
+        filename,
+        s3Key: key,
+        filetype: filetype || null,
+        filesize: isNaN(filesize) ? null : filesize,
+        status: 'UPLOADED',
+        createdAt: new Date().toISOString(),
+      } as any;
+
+      await docClient.send(new PutCommand({ TableName: MAIN_TABLE_NAME, Item: item }));
+      return NextResponse.json({ documentId });
+    }
+
+    // Branch B: legacy multipart upload (server-side upload)
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
 
     if (!file) {
       return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
     }
-    
     if (!S3_BUCKET_NAME) {
-      throw new Error("S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.");
+      throw new Error('S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.');
     }
 
     const documentId = uuidv4();
@@ -32,36 +74,36 @@ export async function POST(req: NextRequest) {
     const s3Key = `uploads/${userId}/${documentId}/${file.name}`;
 
     const s3Command = new PutObjectCommand({
-        Bucket: S3_BUCKET_NAME,
-        Key: s3Key,
-        Body: fileBuffer,
-        ContentType: file.type,
+      Bucket: S3_BUCKET_NAME,
+      Key: s3Key,
+      Body: fileBuffer,
+      ContentType: file.type,
     });
     await s3Client.send(s3Command);
 
     const documentItem = {
-        PK: `USER#${userId}`,
-        SK: `DOC#${documentId}`,
-        userId,
-        documentId,
-        filename: file.name,
-        s3Key,
-        filetype: file.type,
-        filesize: file.size,
-        status: 'UPLOADED',
-        createdAt: new Date().toISOString(),
+      PK: `USER#${userId}`,
+      SK: `DOC#${documentId}`,
+      userId,
+      documentId,
+      filename: file.name,
+      s3Key,
+      filetype: file.type,
+      filesize: file.size,
+      status: 'UPLOADED',
+      createdAt: new Date().toISOString(),
     };
 
     const dbCommand = new PutCommand({
-        TableName: MAIN_TABLE_NAME, // 수정된 부분
-        Item: documentItem,
+      TableName: MAIN_TABLE_NAME, // 수정된 부분
+      Item: documentItem,
     });
     await docClient.send(dbCommand);
 
     return NextResponse.json({ documentId });
 
   } catch (error: any) {
-    console.error('File Upload API Error:', error);
+    console.error('File Upload/Metadata API Error:', error);
     if (error.name === 'JsonWebTokenError') {
         return NextResponse.json({ message: '손상된 토큰입니다.' }, { status: 401 });
     }
