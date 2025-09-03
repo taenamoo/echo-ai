@@ -27,8 +27,21 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        {/** Toast provider for app-wide notifications */}
+        {/** eslint-disable-next-line @next/next/no-head-element */}
+        <div>
+          {/* Client boundary inside body */}
+          {/* @ts-expect-error Server/Client interop fine for provider wrapper */}
+          <ClientToast>{children}</ClientToast>
+        </div>
       </body>
     </html>
   );
+}
+
+// Small client wrapper to host the ToastProvider in the app shell
+function ClientToast({ children }: { children: React.ReactNode }) {
+  // Dynamic import avoided; simple re-export
+  const { ToastProvider } = require('@/lib/ui/ToastProvider');
+  return <ToastProvider>{children}</ToastProvider>;
 }

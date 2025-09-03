@@ -112,8 +112,8 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
         <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
           <h1 className="text-xl font-bold text-gray-800">Echo AI</h1>
           <div className="space-x-2">
-            <Link href="/documents" className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600">목록</Link>
-            <button onClick={() => { localStorage.removeItem('accessToken'); window.location.href = '/'; }} className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600">로그아웃</button>
+            <Link href="/documents" aria-label="문서 목록으로 이동" className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500">목록</Link>
+            <button onClick={() => { localStorage.removeItem('accessToken'); window.location.href = '/'; }} aria-label="로그아웃" className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500">로그아웃</button>
           </div>
         </nav>
       </header>
@@ -133,8 +133,8 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 <p className="text-sm text-gray-500">ID: {detail.documentId} · 생성일: {formatDate(detail.createdAt || null)} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
               </div>
               <div className="space-x-2">
-                <button onClick={handleDelete} className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200">삭제</button>
-                <button onClick={handleSummarize} disabled={summarizing || detail.status === 'PROCESSING'} className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400">
+                <button onClick={handleDelete} aria-label="문서 삭제" className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">삭제</button>
+                <button onClick={handleSummarize} aria-label="문서 요약 실행" disabled={summarizing || detail.status === 'PROCESSING'} className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-blue-500">
                   {summarizing ? '요약 중...' : '요약 실행'}
                 </button>
               </div>

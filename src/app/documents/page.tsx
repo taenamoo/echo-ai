@@ -4,6 +4,7 @@ import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import axios from 'axios';
 import StatusBadge from '@/app/documents/components/StatusBadge';
 import { formatDate, formatSize } from '@/lib/ui/format';
+import { useToast } from '@/lib/ui/ToastProvider';
 
 type UploadStatus = 'idle' | 'uploading' | 'summarizing' | 'success' | 'error';
 
@@ -35,7 +36,8 @@ export default function DocumentsPage() {
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
+      // Keep first for button enablement, but we'll process all on submit
       setFile(e.target.files[0]);
     }
   };
@@ -105,9 +107,13 @@ export default function DocumentsPage() {
     return () => clearInterval(id);
   }, [items, accessToken]);
 
+  const { push } = useToast();
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!file || !accessToken) {
+    const input = document.getElementById('file-upload') as HTMLInputElement | null;
+    const files = input?.files;
+    if (!files || files.length === 0 || !accessToken) {
       setErrorMessage('파일을 선택하거나 다시 로그인해주세요.');
       return;
     }
@@ -118,45 +124,50 @@ export default function DocumentsPage() {
 
     try {
       const baseUrl = window.location.origin;
-      // 1) Presign 요청 (브라우저 직접 업로드)
-      const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
-        filename: file.name,
-        contentType: file.type || 'application/octet-stream',
-        size: file.size,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+      // Sequentially process files
+      for (let i = 0; i < files.length; i++) {
+        const f = files.item(i)!;
+        try {
+          // 1) Presign 요청
+          const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
+            filename: f.name,
+            contentType: f.type || 'application/octet-stream',
+            size: f.size,
+          }, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          const { url, fields, key } = presignRes.data as { url: string; fields: Record<string, string>; key: string };
+
+          // 2) S3 업로드
+          const s3Form = new FormData();
+          Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
+          s3Form.append('file', f);
+          await axios.post(url, s3Form);
+
+          // 3) 메타 저장
+          await axios.post(`${baseUrl}/api/documents`, {
+            key,
+            filename: f.name,
+            filetype: f.type,
+            filesize: f.size,
+          }, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          push({ message: `업로드 완료: ${f.name}`, type: 'success' });
+        } catch (ex: any) {
+          const msg = ex.response?.data?.message || '업로드 중 오류가 발생했습니다.';
+          push({ message: `업로드 실패: ${f.name} - ${msg}`, type: 'error' });
         }
-      });
+      }
 
-      const { url, fields, key, documentId } = presignRes.data as {
-        url: string;
-        fields: Record<string, string>;
-        key: string;
-        documentId: string;
-      };
-
-      // 2) S3에 직접 업로드 (Presigned POST)
-      const s3Form = new FormData();
-      Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
-      s3Form.append('file', file);
-      await axios.post(url, s3Form);
-
-      // 3) 메타데이터 저장 (DB 레코드 생성)
-      await axios.post(`${baseUrl}/api/documents`, {
-        key,
-        filename: file.name,
-        filetype: file.type,
-        filesize: file.size,
-      }, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      // 업로드 성공 후 목록 갱신
+      // 전체 처리 후 목록 갱신
       await fetchList();
       setStatus('success');
 
@@ -224,15 +235,19 @@ export default function DocumentsPage() {
                 id="file-upload"
                 type="file"
                 accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"
+                multiple
                 onChange={handleFileChange}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                aria-label="업로드할 파일 선택"
+                className="block w-full text-sm text-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
             </div>
 
             <button
               type="submit"
-              disabled={!file || status === 'uploading' || status === 'summarizing'}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-semibold hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
+              disabled={!file || status === 'uploading'}
+              aria-disabled={!file || status === 'uploading'}
+              aria-label="선택한 파일 업로드"
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-semibold hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
             >
               {getButtonText()}
             </button>
@@ -266,11 +281,11 @@ export default function DocumentsPage() {
                       <td className="p-3 text-gray-600">{formatDate(it.createdAt)}</td>
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
-                        <button onClick={() => window.location.href = `/documents/${it.documentId}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700">상세</button>
-                        <button onClick={() => handleSummarize(it.documentId)} disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId} className="bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400">
+                        <button onClick={() => window.location.href = `/documents/${it.documentId}`} aria-label={`문서 상세 보기 ${it.filename}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">상세</button>
+                        <button onClick={() => handleSummarize(it.documentId)} aria-label={`문서 요약 실행 ${it.filename}`} disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId} className="bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-emerald-500">
                           {summarizingId===it.documentId ? '요약 중...' : '요약'}
                         </button>
-                        <button onClick={() => handleDelete(it.documentId)} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200">삭제</button>
+                        <button onClick={() => handleDelete(it.documentId)} aria-label={`문서 삭제 ${it.filename}`} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">삭제</button>
                       </td>
                     </tr>
                   ))}
