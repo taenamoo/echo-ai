@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/token';
+import { getUserIdFromRequest } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
@@ -33,13 +34,9 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId)
+    const userId = getUserIdFromRequest(req);
+    if (!userId)
       return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-
-    const userId = decoded.userId as string;
     const documentId = params.documentId;
 
     const getRes = await docClient.send(
@@ -66,13 +63,9 @@ export async function DELETE(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId)
+    const userId = getUserIdFromRequest(req);
+    if (!userId)
       return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-
-    const userId = decoded.userId as string;
     const documentId = params.documentId;
 
     // Load to get s3Key, also verify ownership
