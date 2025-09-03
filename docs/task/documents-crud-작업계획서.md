@@ -11,6 +11,7 @@
 - 공통 사전조건: `docs/task/document-management-작업계획서.md` 참조
 - DynamoDB 테이블: `EchoAI-Main-Table` (PK=`USER#<userId>`, SK=`DOC#<documentId>`)
 - 인증: `Authorization: Bearer <accessToken>` 사용, `verifyToken`으로 userId 획득
+- 공통 미들웨어: `/api/documents/*` 경로는 `middleware.ts`에서 Authorization 헤더 존재 여부를 선검사함
 
 -----
 
