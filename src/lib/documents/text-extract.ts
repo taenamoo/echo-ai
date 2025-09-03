@@ -42,11 +42,12 @@ export async function extractTextFromBuffer(buf: Buffer, contentType?: string): 
     return buf.toString('utf-8');
   }
   if (type === 'application/pdf' || type.includes('pdf')) {
-    const pdfParse = (await import('pdf-parse')).default as any;
+    type PdfParse = (data: Buffer) => Promise<{ text?: string }>;
+    const pdfParseMod = await import('pdf-parse');
+    const pdfParse = (pdfParseMod.default as unknown) as PdfParse;
     const data = await pdfParse(buf);
     const text: string = data?.text || '';
     return text || null;
   }
   return null;
 }
-

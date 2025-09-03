@@ -41,7 +41,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'documentId를 추출할 수 없습니다.' }, { status: 400 });
       }
 
-      const item = {
+      type DocumentItem = {
+        PK: string;
+        SK: string;
+        userId: string;
+        documentId: string;
+        filename: string;
+        s3Key: string;
+        filetype: string | null;
+        filesize: number | null;
+        status: 'UPLOADED' | 'PENDING' | 'PROCESSING' | 'COMPLETE' | 'FAILED';
+        createdAt: string;
+      };
+
+      const item: DocumentItem = {
         PK: `USER#${userId}`,
         SK: `DOC#${documentId}`,
         userId,
@@ -52,7 +65,7 @@ export async function POST(req: NextRequest) {
         filesize: isNaN(filesize) ? null : filesize,
         status: 'UPLOADED',
         createdAt: new Date().toISOString(),
-      } as any;
+      };
 
       await docClient.send(new PutCommand({ TableName: MAIN_TABLE_NAME, Item: item }));
       return NextResponse.json({ documentId });
@@ -66,7 +79,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
     }
     if (!S3_BUCKET_NAME) {
-      throw new Error('S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.');
+      return NextResponse.json({ message: 'S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.' }, { status: 500 });
     }
 
     const documentId = uuidv4();
