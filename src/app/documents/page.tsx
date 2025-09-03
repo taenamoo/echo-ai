@@ -2,6 +2,8 @@
 
 import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import axios from 'axios';
+import StatusBadge from '@/app/documents/components/StatusBadge';
+import { formatDate, formatSize } from '@/lib/ui/format';
 
 type UploadStatus = 'idle' | 'uploading' | 'summarizing' | 'success' | 'error';
 
@@ -285,33 +287,6 @@ export default function DocumentsPage() {
       </main>
     </div>
   );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const s = (status || '').toUpperCase();
-  const color = s === 'COMPLETE' ? 'bg-green-100 text-green-800' : s === 'PROCESSING' ? 'bg-yellow-100 text-yellow-800' : s === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
-  return <span className={`inline-block px-2 py-1 text-xs rounded ${color}`}>{s}</span>;
-}
-
-function formatSize(n?: number | null) {
-  if (!n && n !== 0) return '-';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(iso?: string | null) {
-  if (!iso) return '-';
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '-';
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const da = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mm = String(d.getMinutes()).padStart(2, '0');
-    return `${y}-${m}-${da} ${hh}:${mm}`;
-  } catch { return '-'; }
 }
 
 // local helper bound to component state via closure
