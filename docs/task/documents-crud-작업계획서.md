@@ -11,6 +11,7 @@
 - 공통 사전조건: `docs/task/document-management-작업계획서.md` 참조
 - DynamoDB 테이블: `EchoAI-Main-Table` (PK=`USER#<userId>`, SK=`DOC#<documentId>`)
 - 인증: `Authorization: Bearer <accessToken>` 사용, `verifyToken`으로 userId 획득
+- 공통 미들웨어: `/api/documents/*` 경로는 `middleware.ts`에서 Authorization 헤더 존재 여부를 선검사함
 
 -----
 
@@ -70,3 +71,62 @@
 1) 로그인 후 목록 조회 → 응답 형식/페이징 확인
 2) 임의 문서 상세 조회 → 존재/권한/404 케이스 확인
 3) 삭제 실행 → S3/DB 확인, 목록에서 제외 확인
+
+-----
+
+### 7. 테스트용 cURL 예시
+
+- 준비: 액세스 토큰 환경변수 설정(로그인/회원가입 응답의 `accessToken` 사용)
+
+```bash
+export TOKEN="<YOUR_ACCESS_TOKEN>"
+```
+
+- 목록 조회 (기본 20개)
+
+```bash
+curl -s -X GET "http://localhost:3001/api/documents?limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+- 페이지네이션 (nextCursor 사용)
+
+```bash
+# jq 없이 Node로 nextCursor만 파싱
+NEXT=$(curl -s -X GET "http://localhost:3001/api/documents?limit=5" \
+  -H "Authorization: Bearer $TOKEN" \
+  | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const j=JSON.parse(d);console.log(j.nextCursor||'');}catch{}})")
+
+if [ -n "$NEXT" ]; then
+  curl -s -X GET "http://localhost:3001/api/documents?limit=5&cursor=$NEXT" \
+    -H "Authorization: Bearer $TOKEN"
+fi
+```
+
+- 상세 조회
+
+```bash
+DOC_ID="<DOCUMENT_ID>"
+curl -s -X GET "http://localhost:3001/api/documents/$DOC_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+- 삭제
+
+```bash
+DOC_ID="<DOCUMENT_ID>"
+curl -s -X DELETE "http://localhost:3001/api/documents/$DOC_ID" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+- (선택) LocalStack S3에서 실제 삭제 확인
+
+```bash
+DOC_ID="<DOCUMENT_ID>"
+docker exec -it echo-ai-localstack awslocal s3 ls \
+  "s3://$S3_BUCKET_NAME/uploads/<USER_ID>/$DOC_ID/"
+```
+
+주의
+- `Authorization` 헤더 대소문자는 무관하지만 동일 요청에 포함되어야 합니다.
+- 401: 토큰 없음/무효, 404: 문서 없음, 403: 소유자 불일치 시 고려(향후 강화).
