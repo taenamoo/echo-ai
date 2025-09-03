@@ -1,16 +1,45 @@
+/**
+ * @file src/app/api/study/search/route.ts
+ * @module StudySearchAPI
+ * @description 사용자의 스터디 노트 전체를 대상으로 AI 기반 검색을 수행하는 API 라우트 핸들러입니다.
+ * @overview
+ * 이 파일은 Next.js의 App Router를 기반으로 동작하는 서버 측 코드입니다.
+ * React 클라이언트(AiSearchButton 컴포넌트)에서 사용자가 입력한 검색어(searchTerm)를 받아,
+ * 해당 사용자의 모든 스터디 노트를 AWS DynamoDB에서 조회합니다.
+ * 조회된 노트 내용을 '컨텍스트(Context)'로 구성하여 Gemini AI 모델에 전달하고,
+ * AI가 생성한 답변을 다시 클라이언트로 반환하는 '검색 증강 생성(RAG)' 패턴을 구현합니다.
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth/token';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// --- AI 모델 초기화 ---
+// [클린 코드] AI 모델 클라이언트를 전역 상수로 초기화하여 재사용하고, API 키는 환경 변수에서 안전하게 관리합니다.
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+/**
+ * @function callAiSearchModel
+ * @description Gemini AI 모델을 호출하여 사용자의 질문에 대한 답변을 생성하는 헬퍼 함수입니다.
+ * @param {string} context - 사용자의 모든 스터디 노트 내용을 하나로 합친 문자열.
+ * @param {string} query - 사용자가 입력한 검색어 또는 질문.
+ * @returns {Promise<string>} AI가 생성한 답변 문자열.
+ * @rationale
+ * [클린 코드] AI 모델과의 통신 로직을 별도의 함수로 분리하면, 메인 핸들러(POST)의 코드가 간결해지고
+ * 책임(Authentication, Data Fetching, AI Call)이 명확하게 나뉘어 유지보수성이 향상됩니다.
+ */
 async function callAiSearchModel(context: string, query: string): Promise<string> {
   try {
+    // [기능: AI 모델 선택]
+    // "gemini-1.5-flash" 모델은 빠른 응답 속도와 우수한 성능을 균형 있게 제공하여 대화형 검색 기능에 적합합니다.
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const hasContent = context && context.trim() !== '';
 
+    // [기능: 프롬프트 엔지니어링 (Prompt Engineering)]
+    // AI가 최상의 결과를 생성하도록 명확하고 구조화된 지침(프롬프트)을 설계합니다.
+    // '역할 부여', '컨텍스트 제공(RAG)', '질문 전달', '출력 형식 지정' 등의 기법을 사용합니다.
     const prompt = `
       당신은 매우 유능한 AI 검색 어시스턴트입니다.
       아래에 주어진 [스터디 노트 데이터]와 사용자의 [질문]을 참고하여 지침에 따라 답변을 생성해주세요.
@@ -44,19 +73,30 @@ async function callAiSearchModel(context: string, query: string): Promise<string
   }
 }
 
+/**
+ * @function POST
+ * @description POST /api/study/search
+ * 사용자의 검색 요청을 받아 AI를 통해 답변을 생성하고 반환합니다.
+ * @param {NextRequest} req - 클라이언트로부터의 요청 객체.
+ * @returns {Promise<NextResponse>} AI가 생성한 검색 결과 또는 에러 메시지를 포함하는 응답.
+ */
 export async function POST(req: NextRequest) {
   try {
+    // 1. [인증] 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
     const token = req.headers.get('authorization')?.split(' ')[1];
     if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
 
     const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
 
+    // 2. [요청 파싱] 클라이언트에서 보낸 검색어(searchTerm)를 추출합니다.
     const { searchTerm } = await req.json();
     if (!searchTerm) {
       return NextResponse.json({ message: '검색어가 필요합니다.' }, { status: 400 });
     }
 
+    // 3. [데이터 조회 - RAG의 Retrieval 단계]
+    //    AI에게 질문하기 전에, AI가 참고할 자료(사용자의 모든 스터디 노트)를 DB에서 가져옵니다.
     const queryCommand = new QueryCommand({
       TableName: STUDY_TABLE_NAME,
       KeyConditionExpression: 'user_id = :userId',
@@ -64,12 +104,16 @@ export async function POST(req: NextRequest) {
     });
     const { Items } = await docClient.send(queryCommand);
     
+    // 4. [컨텍스트 구성] 조회된 노트들을 AI가 이해하기 쉬운 텍스트 형식으로 가공합니다.
     const context = (Items || [])
       .map(item => `제목: ${item.title}\n내용: ${item.content || ''}\n좋은 예시: ${item.good_example || ''}\n나쁜 예시: ${item.bad_example || ''}`)
       .join('\n\n---\n\n');
 
+    // 5. [AI 호출 - RAG의 Generation 단계]
+    //    가공된 컨텍스트와 사용자의 질문을 AI 모델에 전달하여 최종 답변을 생성합니다.
     const searchResult = await callAiSearchModel(context, searchTerm);
 
+    // 6. [응답] 생성된 결과를 클라이언트(React)에 반환합니다.
     return NextResponse.json({ result: searchResult });
 
   } catch (error) {
