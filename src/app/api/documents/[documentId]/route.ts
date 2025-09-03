@@ -7,6 +7,11 @@ import { ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 
 const BUCKET = process.env.S3_BUCKET_NAME as string | undefined;
 
+// Type guard for DynamoDB document item ownership
+function isOwnedByUser(item: unknown, userId: string): item is { userId: string } {
+  return !!item && typeof (item as any).userId === 'string' && (item as any).userId === userId;
+}
+
 async function deleteS3Prefix(bucket: string, prefix: string) {
   let ContinuationToken: string | undefined = undefined;
   do {
@@ -45,7 +50,7 @@ export async function GET(
     );
     if (!getRes.Item)
       return NextResponse.json({ message: '문서를 찾을 수 없습니다.' }, { status: 404 });
-    if ((getRes.Item as any).userId !== userId) {
+    if (!isOwnedByUser(getRes.Item, userId)) {
       return NextResponse.json({ message: '문서에 접근할 권한이 없습니다.' }, { status: 403 });
     }
 
@@ -79,7 +84,7 @@ export async function DELETE(
     );
     if (!getRes.Item)
       return NextResponse.json({ message: '문서를 찾을 수 없습니다.' }, { status: 404 });
-    if ((getRes.Item as any).userId !== userId) {
+    if (!isOwnedByUser(getRes.Item, userId)) {
       return NextResponse.json({ message: '문서를 삭제할 권한이 없습니다.' }, { status: 403 });
     }
 
