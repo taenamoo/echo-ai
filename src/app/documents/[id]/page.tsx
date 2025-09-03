@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import StatusBadge from '@/app/documents/components/StatusBadge';
+import { formatDate } from '@/lib/ui/format';
 
 type DocDetail = {
   documentId: string;
@@ -153,9 +155,4 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const s = status.toUpperCase();
-  const color = s === 'COMPLETE' ? 'bg-green-100 text-green-800' : s === 'PROCESSING' ? 'bg-yellow-100 text-yellow-800' : s === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
-  const label = s;
-  return <span className={`inline-block px-2 py-1 text-xs rounded ${color}`}>{label}</span>;
-}
+// StatusBadge moved to shared component
