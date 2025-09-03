@@ -5,6 +5,7 @@ import axios from 'axios';
 import Link from 'next/link';
 import StatusBadge from '@/app/documents/components/StatusBadge';
 import { formatDate } from '@/lib/ui/format';
+import { useToast } from '@/lib/ui/ToastProvider';
 
 type DocDetail = {
   documentId: string;
@@ -24,6 +25,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [summarizing, setSummarizing] = useState(false);
+  const { push } = useToast();
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -78,14 +80,18 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       });
       if (res.status === 202) {
         // queued async mode
+        push({ message: '요약 작업이 큐에 등록되었습니다.', type: 'info', duration: 4000 });
         await pollUntilComplete();
       } else if (res.status >= 200 && res.status < 300) {
         await fetchDetail();
+        push({ message: '요약이 완료되었습니다.', type: 'success' });
       } else {
         setError(res.data?.message || '요약 중 오류가 발생했습니다.');
+        push({ message: res.data?.message || '요약 중 오류가 발생했습니다.', type: 'error' });
       }
     } catch (e: any) {
       setError(e.response?.data?.message || '요약 요청에 실패했습니다.');
+      push({ message: e.response?.data?.message || '요약 요청에 실패했습니다.', type: 'error' });
     } finally {
       setSummarizing(false);
     }
@@ -98,9 +104,11 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
       await axios.delete(`${baseUrl}/api/documents/${documentId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
+      push({ message: '문서가 삭제되었습니다.', type: 'success' });
       window.location.href = '/documents';
     } catch (e: any) {
       setError(e.response?.data?.message || '삭제에 실패했습니다.');
+      push({ message: e.response?.data?.message || '삭제에 실패했습니다.', type: 'error' });
     }
   };
 

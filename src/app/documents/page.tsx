@@ -18,6 +18,8 @@ export default function DocumentsPage() {
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loadingList, setLoadingList] = useState<boolean>(false);
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [progress, setProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -67,8 +69,10 @@ export default function DocumentsPage() {
     if (accessToken) fetchList();
   }, [accessToken]);
 
+  const { push: pushToast } = useToast();
   const handleDelete = useDeleteHandler(accessToken, async () => {
     await fetchList();
+    pushToast({ message: '문서가 삭제되었습니다.', type: 'success' });
   });
 
   const handleSummarize = async (documentId: string) => {
@@ -145,7 +149,15 @@ export default function DocumentsPage() {
           const s3Form = new FormData();
           Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
           s3Form.append('file', f);
-          await axios.post(url, s3Form);
+          setProgress(prev => ({ ...prev, [f.name]: 0 }));
+          await axios.post(url, s3Form, {
+            onUploadProgress: (evt) => {
+              if (evt.total) {
+                const pct = Math.round((evt.loaded * 100) / evt.total);
+                setProgress(prev => ({ ...prev, [f.name]: pct }));
+              }
+            }
+          });
 
           // 3) 메타 저장
           await axios.post(`${baseUrl}/api/documents`, {
@@ -161,6 +173,7 @@ export default function DocumentsPage() {
           });
 
           push({ message: `업로드 완료: ${f.name}`, type: 'success' });
+          setProgress(prev => ({ ...prev, [f.name]: 100 }));
         } catch (ex: any) {
           const msg = ex.response?.data?.message || '업로드 중 오류가 발생했습니다.';
           push({ message: `업로드 실패: ${f.name} - ${msg}`, type: 'error' });
@@ -181,6 +194,69 @@ export default function DocumentsPage() {
     } finally {
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if(fileInput) fileInput.value = '';
+      setProgress({});
+    }
+  };
+
+  // Drag-and-drop handlers
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+  const onDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!accessToken) return;
+    const dt = e.dataTransfer;
+    const files = dt.files;
+    if (!files || files.length === 0) return;
+    // Reflect first file to enable button
+    setFile(files.item(0) || null);
+    // Build a transient input-like object to reuse handler logic
+    const baseUrl = window.location.origin;
+    setSummary('');
+    setErrorMessage('');
+    setStatus('uploading');
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const f = files.item(i)!;
+        try {
+          const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
+            filename: f.name,
+            contentType: f.type || 'application/octet-stream',
+            size: f.size,
+          }, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
+          const { url, fields, key } = presignRes.data as { url: string; fields: Record<string, string>; key: string };
+          const s3Form = new FormData();
+          Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
+          s3Form.append('file', f);
+          setProgress(prev => ({ ...prev, [f.name]: 0 }));
+          await axios.post(url, s3Form, { onUploadProgress: (evt) => {
+            if (evt.total) setProgress(prev => ({ ...prev, [f.name]: Math.round((evt.loaded * 100) / evt.total) }));
+          }});
+          await axios.post(`${baseUrl}/api/documents`, { key, filename: f.name, filetype: f.type, filesize: f.size }, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
+          push({ message: `업로드 완료: ${f.name}`, type: 'success' });
+          setProgress(prev => ({ ...prev, [f.name]: 100 }));
+        } catch (ex: any) {
+          const msg = ex.response?.data?.message || '업로드 중 오류가 발생했습니다.';
+          push({ message: `업로드 실패: ${f.name} - ${msg}`, type: 'error' });
+        }
+      }
+      await fetchList();
+      setStatus('success');
+    } catch (error: any) {
+      const message = error.response?.data?.message || '오류가 발생했습니다.';
+      setErrorMessage(message);
+      setStatus('error');
+      if (error.response?.status === 401) {
+        handleLogout();
+      }
+    } finally {
+      setProgress({});
     }
   };
 
@@ -231,6 +307,17 @@ export default function DocumentsPage() {
               <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 mb-2">
                 요약할 파일을 선택하세요 (PDF, TXT 등)
               </label>
+              <div
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onDrop={onDrop}
+                role="button"
+                aria-label="파일을 드래그 앤 드롭하여 업로드"
+                tabIndex={0}
+                className={`w-full border-2 ${isDragging ? 'border-blue-500' : 'border-dashed border-gray-300'} rounded-md p-4 text-center text-sm text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500`}
+              >
+                여기로 파일을 드래그하여 업로드하거나 아래에서 선택하세요.
+              </div>
               <input
                 id="file-upload"
                 type="file"
@@ -255,6 +342,22 @@ export default function DocumentsPage() {
 
           {errorMessage && (
             <div className="mt-4 p-4 bg-red-50 text-red-700 rounded">{errorMessage}</div>
+          )}
+
+          {Object.keys(progress).length > 0 && (
+            <div className="space-y-2" aria-live="polite">
+              {Object.entries(progress).map(([name, pct]) => (
+                <div key={name} className="w-full">
+                  <div className="flex justify-between text-xs text-gray-600 mb-1">
+                    <span className="truncate max-w-[70%]" title={name}>{name}</span>
+                    <span>{pct ?? 0}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-gray-200 rounded">
+                    <div className="h-2 bg-blue-600 rounded" style={{ width: `${pct || 0}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           <section className="mt-8">
