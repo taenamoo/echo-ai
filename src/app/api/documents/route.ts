@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth/token';
 import { getUserIdFromRequest } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
+import type { DocumentItem } from '@/types/document';
 import { s3Client } from '@/lib/aws/s3';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
@@ -40,19 +41,6 @@ export async function POST(req: NextRequest) {
       if (!documentId) {
         return NextResponse.json({ message: 'documentId를 추출할 수 없습니다.' }, { status: 400 });
       }
-
-      type DocumentItem = {
-        PK: string;
-        SK: string;
-        userId: string;
-        documentId: string;
-        filename: string;
-        s3Key: string;
-        filetype: string | null;
-        filesize: number | null;
-        status: 'UPLOADED' | 'PENDING' | 'PROCESSING' | 'COMPLETE' | 'FAILED';
-        createdAt: string;
-      };
 
       const item: DocumentItem = {
         PK: `USER#${userId}`,
