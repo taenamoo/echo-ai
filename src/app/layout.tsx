@@ -43,5 +43,7 @@ export default function RootLayout({
 function ClientToast({ children }: { children: React.ReactNode }) {
   // Dynamic import avoided; simple re-export
   const { ToastProvider } = require('@/lib/ui/ToastProvider');
-  return <ToastProvider>{children}</ToastProvider>;
+  const pos = process.env.NEXT_PUBLIC_TOAST_POSITION || 'top-right';
+  const dur = Number(process.env.NEXT_PUBLIC_TOAST_DURATION || 3000);
+  return <ToastProvider position={pos} defaultDuration={isNaN(dur) ? 3000 : dur}>{children}</ToastProvider>;
 }
