@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth/token';
 import { getUserIdFromRequest } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
-import type { DocumentItem } from '@/types/document';
+import type { DocumentItem, DocumentStatus } from '@/types/document';
 import { s3Client } from '@/lib/aws/s3';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
@@ -37,23 +37,23 @@ export async function POST(req: NextRequest) {
       if (parts.length < 4 || parts[0] !== 'uploads' || parts[1] !== userId) {
         return NextResponse.json({ message: 'key 형식이 올바르지 않습니다.' }, { status: 400 });
       }
-      const documentId = providedDocId || parts[2];
+      const documentId = parts[2];
+      if (providedDocId && providedDocId !== documentId) {
+        return NextResponse.json({ message: '제공된 documentId가 S3 키의 documentId와 일치하지 않습니다.' }, { status: 400 });
+      }
       if (!documentId) {
         return NextResponse.json({ message: 'documentId를 추출할 수 없습니다.' }, { status: 400 });
       }
 
-      const item: DocumentItem = {
-        PK: `USER#${userId}`,
-        SK: `DOC#${documentId}`,
+      const item: DocumentItem = createDocumentItem(
         userId,
         documentId,
         filename,
-        s3Key: key,
-        filetype: filetype || null,
-        filesize: isNaN(filesize) ? null : filesize,
-        status: 'UPLOADED',
-        createdAt: new Date().toISOString(),
-      };
+        key,
+        filetype || null,
+        isNaN(filesize) ? null : filesize,
+        'UPLOADED'
+      );
 
       await docClient.send(new PutCommand({ TableName: MAIN_TABLE_NAME, Item: item }));
       return NextResponse.json({ documentId });
@@ -82,18 +82,15 @@ export async function POST(req: NextRequest) {
     });
     await s3Client.send(s3Command);
 
-    const documentItem = {
-      PK: `USER#${userId}`,
-      SK: `DOC#${documentId}`,
+    const documentItem = createDocumentItem(
       userId,
       documentId,
-      filename: file.name,
+      file.name,
       s3Key,
-      filetype: file.type,
-      filesize: file.size,
-      status: 'UPLOADED',
-      createdAt: new Date().toISOString(),
-    };
+      file.type || null,
+      file.size || null,
+      'UPLOADED'
+    );
 
     const dbCommand = new PutCommand({
       TableName: MAIN_TABLE_NAME, // 수정된 부분
@@ -110,6 +107,29 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ message: '파일 업로드 중 서버 오류가 발생했습니다.' }, { status: 500 });
   }
+}
+
+function createDocumentItem(
+  userId: string,
+  documentId: string,
+  filename: string,
+  s3Key: string,
+  filetype: string | null,
+  filesize: number | null,
+  status: DocumentStatus
+): DocumentItem {
+  return {
+    PK: `USER#${userId}`,
+    SK: `DOC#${documentId}`,
+    userId,
+    documentId,
+    filename,
+    s3Key,
+    filetype,
+    filesize,
+    status,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 // GET /api/documents?limit=20&cursor=<base64>

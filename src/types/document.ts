@@ -15,3 +15,5 @@ export type DocumentItem = {
   updatedAt?: string;
 };
 
+// External lib types
+export type PdfParse = (data: Buffer) => Promise<{ text?: string }>;

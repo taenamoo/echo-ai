@@ -78,7 +78,6 @@ export default function DocumentsPage() {
         filename: file.name,
         filetype: file.type,
         filesize: file.size,
-        documentId,
       }, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -94,7 +93,7 @@ export default function DocumentsPage() {
         }
       });
 
-      setSummary(summarizeResponse.data.summary);
+      setSummary(summarizeResponse.data.summaryText);
       setStatus('success');
 
     } catch (error: any) {

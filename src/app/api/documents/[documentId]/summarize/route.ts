@@ -74,11 +74,12 @@ async function summarizeText(text: string): Promise<string> {
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
-  const prompt = `아래 문서 내용을 한국어로 간결하게 요약해 주세요.
+  const promptTemplate = process.env.SUMMARIZE_PROMPT_TEMPLATE || `아래 문서 내용을 한국어로 간결하게 요약해 주세요.
 ---
-${text}
+\${text}
 ---
 요약:`;
+  const prompt = promptTemplate.replace('${text}', text);
 
   const generationConfig: GenerationConfig = {
     maxOutputTokens: SUMMARIZE_MAX_OUTPUT_TOKENS,
@@ -149,7 +150,7 @@ export async function POST(
 
     await updateStatus(userId, documentId, 'COMPLETE', { summaryText: summary });
 
-    return NextResponse.json({ documentId, status: 'COMPLETE', summary, summaryText: summary });
+    return NextResponse.json({ documentId, status: 'COMPLETE', summaryText: summary });
   } catch (error: any) {
     console.error('Summarize Error:', error);
     // Best-effort: reflect FAILED using known params
@@ -162,6 +163,6 @@ export async function POST(
     } catch (innerError) {
       console.error('Failed to update status to FAILED in error handler:', innerError);
     }
-    return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.' }, { status: 500 });
+    return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.', error: (error as Error).message || 'unknown error' }, { status: 500 });
   }
 }
