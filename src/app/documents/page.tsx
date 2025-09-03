@@ -11,6 +11,9 @@ export default function DocumentsPage() {
   const [summary, setSummary] = useState<string>('');
   const [status, setStatus] = useState<UploadStatus>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [items, setItems] = useState<any[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [loadingList, setLoadingList] = useState<boolean>(false);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -33,6 +36,31 @@ export default function DocumentsPage() {
       setFile(e.target.files[0]);
     }
   };
+
+  const fetchList = async (cursor?: string) => {
+    if (!accessToken) return;
+    setLoadingList(true);
+    try {
+      const baseUrl = window.location.origin;
+      const url = new URL(`${baseUrl}/api/documents`);
+      url.searchParams.set('limit', '20');
+      if (cursor) url.searchParams.set('cursor', cursor);
+      const res = await axios.get(url.toString(), {
+        headers: { 'Authorization': `Bearer ${accessToken}` }
+      });
+      const data = res.data as { items: any[]; nextCursor?: string };
+      setItems(cursor ? [...items, ...(data.items || [])] : (data.items || []));
+      setNextCursor(data.nextCursor);
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || '목록을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    if (accessToken) fetchList();
+  }, [accessToken]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -85,15 +113,8 @@ export default function DocumentsPage() {
         }
       });
 
-      setStatus('summarizing');
-
-      const summarizeResponse = await axios.post(`${baseUrl}/api/documents/${documentId}/summarize`, {}, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
-      });
-
-      setSummary(summarizeResponse.data.summaryText);
+      // 업로드 성공 후 목록 갱신
+      await fetchList();
       setStatus('success');
 
     } catch (error: any) {
@@ -174,16 +195,76 @@ export default function DocumentsPage() {
             </button>
           </form>
 
-          {(status !== 'idle' || errorMessage) && (
-            <div className="mt-6 p-6 bg-gray-50 rounded-lg">
-              <h3 className="text-xl font-semibold text-gray-800 mb-4">요약 결과:</h3>
-              {status === 'summarizing' && <p className="text-gray-600 animate-pulse">AI가 문서를 읽고 분석 중입니다...</p>}
-              {status === 'success' && <p className="text-gray-700 whitespace-pre-wrap">{summary}</p>}
-              {status === 'error' && <p className="text-red-600">{errorMessage}</p>}
-            </div>
+          {errorMessage && (
+            <div className="mt-4 p-4 bg-red-50 text-red-700 rounded">{errorMessage}</div>
           )}
+
+          <section className="mt-8">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-xl font-semibold text-gray-800">내 문서</h3>
+              <button disabled={loadingList} onClick={() => fetchList()} className="text-sm text-gray-600 hover:text-gray-800">새로고침</button>
+            </div>
+            <div className="overflow-x-auto border rounded">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-100 text-gray-700">
+                  <tr>
+                    <th className="text-left p-3">파일명</th>
+                    <th className="text-left p-3">크기</th>
+                    <th className="text-left p-3">상태</th>
+                    <th className="text-right p-3">액션</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it) => (
+                    <tr key={it.documentId} className="border-t">
+                      <td className="p-3 text-gray-800">{it.filename}</td>
+                      <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>
+                      <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
+                      <td className="p-3 text-right space-x-2">
+                        <button onClick={() => window.location.href = `/documents/${it.documentId}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700">상세</button>
+                        <button onClick={() => onDelete(it.documentId)} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200">삭제</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {nextCursor && (
+              <div className="mt-4 text-center">
+                <button disabled={loadingList} onClick={() => fetchList(nextCursor)} className="text-sm bg-white border px-4 py-2 rounded hover:bg-gray-50">더 불러오기</button>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>
   );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const s = (status || '').toUpperCase();
+  const color = s === 'COMPLETE' ? 'bg-green-100 text-green-800' : s === 'PROCESSING' ? 'bg-yellow-100 text-yellow-800' : s === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800';
+  return <span className={`inline-block px-2 py-1 text-xs rounded ${color}`}>{s}</span>;
+}
+
+function formatSize(n?: number | null) {
+  if (!n && n !== 0) return '-';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function onDelete(documentId: string) {
+  const token = localStorage.getItem('accessToken');
+  if (!token) {
+    window.location.href = '/';
+    return;
+  }
+  try {
+    const baseUrl = window.location.origin;
+    await axios.delete(`${baseUrl}/api/documents/${documentId}`, { headers: { Authorization: `Bearer ${token}` } });
+    window.location.reload();
+  } catch (e: any) {
+    alert(e.response?.data?.message || '삭제 중 오류가 발생했습니다.');
+  }
 }
