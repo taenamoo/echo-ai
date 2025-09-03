@@ -128,7 +128,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-gray-800">{detail.filename}</h2>
-                <p className="text-sm text-gray-500">ID: {detail.documentId} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
+                <p className="text-sm text-gray-500">ID: {detail.documentId} · 생성일: {formatDate(detail.createdAt || null)} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
               </div>
               <div className="space-x-2">
                 <button onClick={handleDelete} className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200">삭제</button>
@@ -159,4 +159,3 @@ function StatusBadge({ status }: { status: string }) {
   const label = s;
   return <span className={`inline-block px-2 py-1 text-xs rounded ${color}`}>{label}</span>;
 }
-

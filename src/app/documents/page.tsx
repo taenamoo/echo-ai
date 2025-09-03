@@ -174,8 +174,7 @@ export default function DocumentsPage() {
   const getButtonText = () => {
     switch (status) {
       case 'uploading': return '업로드 중...';
-      case 'summarizing': return 'AI 요약 중...';
-      default: return '요약하기';
+      default: return '업로드';
     }
   };
 
@@ -222,6 +221,7 @@ export default function DocumentsPage() {
               <input
                 id="file-upload"
                 type="file"
+                accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"
                 onChange={handleFileChange}
                 className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
               />
@@ -251,6 +251,7 @@ export default function DocumentsPage() {
                   <tr>
                     <th className="text-left p-3">파일명</th>
                     <th className="text-left p-3">크기</th>
+                    <th className="text-left p-3">생성일</th>
                     <th className="text-left p-3">상태</th>
                     <th className="text-right p-3">액션</th>
                   </tr>
@@ -260,6 +261,7 @@ export default function DocumentsPage() {
                     <tr key={it.documentId} className="border-t">
                       <td className="p-3 text-gray-800">{it.filename}</td>
                       <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>
+                      <td className="p-3 text-gray-600">{formatDate(it.createdAt)}</td>
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
                         <button onClick={() => window.location.href = `/documents/${it.documentId}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700">상세</button>
@@ -296,6 +298,20 @@ function formatSize(n?: number | null) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(iso?: string | null) {
+  if (!iso) return '-';
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '-';
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const da = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    return `${y}-${m}-${da} ${hh}:${mm}`;
+  } catch { return '-'; }
 }
 
 // local helper bound to component state via closure
