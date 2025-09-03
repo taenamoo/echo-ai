@@ -39,8 +39,15 @@ export default function DocumentsPage() {
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      const filesArr = Array.from(e.target.files);
       // Keep first for button enablement, but we'll process all on submit
-      setFile(e.target.files[0]);
+      setFile(filesArr[0]);
+      setSelectedNames(filesArr.map(f => f.name));
+      setSelectedTotalBytes(filesArr.reduce((acc, f) => acc + (f.size || 0), 0));
+    } else {
+      setFile(null);
+      setSelectedNames([]);
+      setSelectedTotalBytes(0);
     }
   };
 
@@ -70,10 +77,14 @@ export default function DocumentsPage() {
   }, [accessToken]);
 
   const { push: pushToast } = useToast();
-  const handleDelete = useDeleteHandler(accessToken, async () => {
-    await fetchList();
-    pushToast({ message: '문서가 삭제되었습니다.', type: 'success' });
-  });
+  const handleDelete = useDeleteHandler(
+    accessToken,
+    async () => {
+      await fetchList();
+      pushToast({ message: '문서가 삭제되었습니다.', type: 'success' });
+    },
+    (msg) => pushToast({ message: msg, type: 'error' })
+  );
 
   const handleSummarize = async (documentId: string) => {
     if (!accessToken) return;
@@ -88,8 +99,9 @@ export default function DocumentsPage() {
         // mark as processing; polling will refresh
         setItems((prev) => prev.map((it) => it.documentId === documentId ? { ...it, status: 'PROCESSING' } : it));
       } else if (res.status >= 200 && res.status < 300) {
-        // completed synchronously; refresh list to get status
-        await fetchList();
+        // completed synchronously; update from response
+        const summaryText = res.data?.summaryText;
+        setItems((prev) => prev.map((it) => it.documentId === documentId ? { ...it, status: 'COMPLETE', summaryText } : it));
       } else {
         setErrorMessage(res.data?.message || '요약 요청에 실패했습니다.');
       }
@@ -196,6 +208,7 @@ export default function DocumentsPage() {
       const fileInput = document.getElementById('file-upload') as HTMLInputElement;
       if(fileInput) fileInput.value = '';
       setProgress({});
+      setSelectedNames([]);
     }
   };
 
@@ -215,8 +228,9 @@ export default function DocumentsPage() {
     const dt = e.dataTransfer;
     const files = dt.files;
     if (!files || files.length === 0) return;
-    // Reflect first file to enable button
+    // Reflect first file to enable button and list names for clarity
     setFile(files.item(0) || null);
+    setSelectedNames(Array.from(files).map(f => f.name));
     // Build a transient input-like object to reuse handler logic
     const baseUrl = window.location.origin;
     setSummary('');
@@ -345,6 +359,12 @@ export default function DocumentsPage() {
             <div className="mt-4 p-4 bg-red-50 text-red-700 rounded">{errorMessage}</div>
           )}
 
+          {selectedNames.length > 0 && (
+            <div className="mt-2 text-sm text-gray-600" aria-live="polite">
+              선택된 파일: {selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length}개`} · 총 용량: {formatSize(selectedTotalBytes)} · 최대(파일당): {getMaxUploadLabel()}
+            </div>
+          )}
+
           {Object.keys(progress).length > 0 && (
             <div className="space-y-2" aria-live="polite">
               {Object.entries(progress).map(([name, pct]) => (
@@ -373,6 +393,7 @@ export default function DocumentsPage() {
                     <th className="text-left p-3">파일명</th>
                     <th className="text-left p-3">크기</th>
                     <th className="text-left p-3">생성일</th>
+                    <th className="text-left p-3">요약</th>
                     <th className="text-left p-3">상태</th>
                     <th className="text-right p-3">액션</th>
                   </tr>
@@ -383,6 +404,7 @@ export default function DocumentsPage() {
                       <td className="p-3 text-gray-800">{it.filename}</td>
                       <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>
                       <td className="p-3 text-gray-600">{formatDate(it.createdAt)}</td>
+                      <td className="p-3 text-gray-600 max-w-[280px] truncate" title={it.summaryText || ''}>{truncate(it.summaryText, 80)}</td>
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
                         <button onClick={() => window.location.href = `/documents/${it.documentId}`} aria-label={`문서 상세 보기 ${it.filename}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">상세</button>
@@ -408,8 +430,18 @@ export default function DocumentsPage() {
   );
 }
 
+function truncate(text?: string | null, n: number = 80) {
+  if (!text) return '';
+  return text.length > n ? text.slice(0, n) + '…' : text;
+}
+
+function getMaxUploadLabel() {
+  const n = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB || 25);
+  return isNaN(n) ? '25 MB' : `${n} MB`;
+}
+
 // local helper bound to component state via closure
-function useDeleteHandler(accessToken: string | null, onAfter?: () => void) {
+function useDeleteHandler(accessToken: string | null, onAfter?: () => void, onError?: (message: string) => void) {
   return async (documentId: string) => {
     if (!accessToken) {
       window.location.href = '/';
@@ -420,7 +452,8 @@ function useDeleteHandler(accessToken: string | null, onAfter?: () => void) {
       await axios.delete(`${baseUrl}/api/documents/${documentId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
       onAfter?.();
     } catch (e: any) {
-      alert(e.response?.data?.message || '삭제 중 오류가 발생했습니다.');
+      const msg = e.response?.data?.message || '삭제 중 오류가 발생했습니다.';
+      onError?.(msg);
     }
   };
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import StatusBadge from '@/app/documents/components/StatusBadge';
 import { formatDate } from '@/lib/ui/format';
 import { useToast } from '@/lib/ui/ToastProvider';
@@ -26,18 +27,19 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
   const [error, setError] = useState<string>('');
   const [summarizing, setSummarizing] = useState(false);
   const { push } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
-      window.location.href = window.location.origin;
+      router.push('/');
     } else {
       setAccessToken(token);
     }
-  }, []);
+  }, [router]);
 
-  const fetchDetail = useCallback(async () => {
-    if (!accessToken) return;
+  const fetchDetail = useCallback(async (): Promise<DocDetail | null> => {
+    if (!accessToken) return null;
     try {
       setLoading(true);
       setError('');
@@ -46,9 +48,11 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       setDetail(res.data);
+      return res.data as DocDetail;
     } catch (e: any) {
       setError(e.response?.data?.message || '문서 정보를 불러오지 못했습니다.');
-      if (e.response?.status === 401) window.location.href = window.location.origin;
+      if (e.response?.status === 401) router.push('/');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -62,8 +66,8 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
     const limitMs = 60000;
     while (Date.now() - start < limitMs) {
       await new Promise(r => setTimeout(r, 2000));
-      await fetchDetail();
-      const st = (detail?.status || '').toUpperCase();
+      const latest = await fetchDetail();
+      const st = (latest?.status || '').toUpperCase();
       if (st === 'COMPLETE' || st === 'FAILED') break;
     }
   };
@@ -105,7 +109,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       push({ message: '문서가 삭제되었습니다.', type: 'success' });
-      window.location.href = '/documents';
+      router.push('/documents');
     } catch (e: any) {
       setError(e.response?.data?.message || '삭제에 실패했습니다.');
       push({ message: e.response?.data?.message || '삭제에 실패했습니다.', type: 'error' });
