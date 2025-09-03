@@ -62,6 +62,21 @@ export default function DocumentsPage() {
     if (accessToken) fetchList();
   }, [accessToken]);
 
+  const handleDelete = useDeleteHandler(accessToken, async () => {
+    await fetchList();
+  });
+
+  // Auto-poll when there are PROCESSING items
+  useEffect(() => {
+    if (!accessToken) return;
+    const hasProcessing = items.some((it) => String(it.status || '').toUpperCase() === 'PROCESSING');
+    if (!hasProcessing) return;
+    const id = setInterval(() => {
+      fetchList();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [items, accessToken]);
+
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!file || !accessToken) {
@@ -222,7 +237,7 @@ export default function DocumentsPage() {
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
                         <button onClick={() => window.location.href = `/documents/${it.documentId}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700">상세</button>
-                        <button onClick={() => onDelete(it.documentId)} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200">삭제</button>
+                        <button onClick={() => handleDelete(it.documentId)} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200">삭제</button>
                       </td>
                     </tr>
                   ))}
@@ -254,17 +269,21 @@ function formatSize(n?: number | null) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-async function onDelete(documentId: string) {
-  const token = localStorage.getItem('accessToken');
-  if (!token) {
-    window.location.href = '/';
-    return;
-  }
-  try {
-    const baseUrl = window.location.origin;
-    await axios.delete(`${baseUrl}/api/documents/${documentId}`, { headers: { Authorization: `Bearer ${token}` } });
-    window.location.reload();
-  } catch (e: any) {
-    alert(e.response?.data?.message || '삭제 중 오류가 발생했습니다.');
-  }
+// local helper bound to component state via closure
+function useDeleteHandler(accessToken: string | null, onAfter?: () => void) {
+  return async (documentId: string) => {
+    if (!accessToken) {
+      window.location.href = '/';
+      return;
+    }
+    try {
+      const baseUrl = window.location.origin;
+      await axios.delete(`${baseUrl}/api/documents/${documentId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      onAfter?.();
+    } catch (e: any) {
+      alert(e.response?.data?.message || '삭제 중 오류가 발생했습니다.');
+    }
+  };
 }
+
+function DocumentsPageInnerDeleteHook() { return null; }
