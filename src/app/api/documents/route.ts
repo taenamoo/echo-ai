@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth/token';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import { s3Client } from '@/lib/aws/s3';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
@@ -70,5 +70,65 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: '손상된 토큰입니다.' }, { status: 401 });
     }
     return NextResponse.json({ message: '파일 업로드 중 서버 오류가 발생했습니다.' }, { status: 500 });
+  }
+}
+
+// GET /api/documents?limit=20&cursor=<base64>
+export async function GET(req: NextRequest) {
+  try {
+    const token = req.headers.get('authorization')?.split(' ')[1];
+    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
+
+    const decoded = verifyToken(token);
+    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const userId = decoded.userId as string;
+
+    const { searchParams } = new URL(req.url);
+    const limitParam = Number(searchParams.get('limit') || 20);
+    const limit = Math.max(1, Math.min(100, isNaN(limitParam) ? 20 : limitParam));
+    const cursor = searchParams.get('cursor');
+
+    const pk = `USER#${userId}`;
+
+    let ExclusiveStartKey: any = undefined;
+    if (cursor) {
+      try {
+        ExclusiveStartKey = JSON.parse(Buffer.from(cursor, 'base64').toString('utf8'));
+      } catch {
+        return NextResponse.json({ message: '잘못된 cursor 값입니다.' }, { status: 400 });
+      }
+    }
+
+    const cmd = new QueryCommand({
+      TableName: MAIN_TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': pk,
+        ':prefix': 'DOC#',
+      },
+      Limit: limit,
+      ExclusiveStartKey,
+      ScanIndexForward: false,
+    });
+    const res = await docClient.send(cmd);
+
+    const items = (res.Items || []).map((it: any) => ({
+      documentId: it.documentId,
+      filename: it.filename,
+      filetype: it.filetype,
+      filesize: it.filesize,
+      status: it.status,
+      createdAt: it.createdAt,
+      updatedAt: it.updatedAt || null,
+    }));
+
+    const nextCursor = res.LastEvaluatedKey
+      ? Buffer.from(JSON.stringify(res.LastEvaluatedKey), 'utf8').toString('base64')
+      : undefined;
+
+    return NextResponse.json({ items, nextCursor });
+  } catch (error) {
+    console.error('List Documents Error:', error);
+    return NextResponse.json({ message: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
