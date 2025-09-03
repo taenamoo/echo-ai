@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth/token';
+import { getUserIdFromRequest } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import { s3Client } from '@/lib/aws/s3';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
@@ -10,15 +11,10 @@ const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) {
-      return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-    }
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) {
+    const userId = getUserIdFromRequest(req);
+    if (!userId) {
       return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
     }
-    const userId = decoded.userId;
 
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
@@ -76,12 +72,8 @@ export async function POST(req: NextRequest) {
 // GET /api/documents?limit=20&cursor=<base64>
 export async function GET(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-    const userId = decoded.userId as string;
+    const userId = getUserIdFromRequest(req);
+    if (!userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
 
     const { searchParams } = new URL(req.url);
     const limitParam = Number(searchParams.get('limit') || 20);
