@@ -87,7 +87,7 @@ ${text}
   return await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Summarization timed out')), SUMMARIZE_TIMEOUT_MS);
     (async () => {
-      try {
+  const prompt = process.env.SUMMARIZE_PROMPT_TEMPLATE || `아래 문서 내용을 한국어로 간결하게 요약해 주세요.\\n---\\n\${text}\\n---\\n요약:`;
         const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
         const resp = await result.response;
         clearTimeout(timer);
