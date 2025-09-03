@@ -1,4 +1,5 @@
 import { Readable } from 'stream';
+import type { PdfParse } from '@/types/document';
 
 export async function streamToBuffer(body: any): Promise<Buffer> {
   if (!body) return Buffer.alloc(0);
@@ -28,11 +29,6 @@ export async function streamToBuffer(body: any): Promise<Buffer> {
     return Buffer.from(txt, 'utf-8');
   }
   if (Buffer.isBuffer(body)) return body;
-  if (body instanceof Readable) {
-    const chunks: Buffer[] = [];
-    for await (const chunk of body) chunks.push(Buffer.from(chunk));
-    return Buffer.concat(chunks);
-  }
   return Buffer.from(String(body), 'utf-8');
 }
 
@@ -42,7 +38,6 @@ export async function extractTextFromBuffer(buf: Buffer, contentType?: string): 
     return buf.toString('utf-8');
   }
   if (type === 'application/pdf' || type.includes('pdf')) {
-    type PdfParse = (data: Buffer) => Promise<{ text?: string }>;
     const pdfParseMod = await import('pdf-parse');
     const pdfParse = (pdfParseMod.default as unknown) as PdfParse;
     const data = await pdfParse(buf);
