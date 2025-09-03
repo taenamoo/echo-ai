@@ -6,30 +6,18 @@ import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { getUserIdFromRequest } from '@/lib/api/auth';
 import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
+import type { DocumentItem } from '@/types/document';
+import { enqueueSummarizeJob } from '@/lib/documents/queue';
 
-const BUCKET = process.env.S3_BUCKET_NAME;
+const BUCKET = process.env.S3_BUCKET_NAME || '';
 const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 45000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
+const SUMMARIZE_ASYNC = /^true$/i.test(process.env.SUMMARIZE_ASYNC || '');
 
 const PK_PREFIX_USER = 'USER#';
 const SK_PREFIX_DOC = 'DOC#';
-
-type DocumentItem = {
-  PK: string;
-  SK: string;
-  userId: string;
-  documentId: string;
-  filename: string;
-  s3Key: string;
-  filetype?: string;
-  filesize?: number;
-  status?: string;
-  summaryText?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
 
 function isOwnedByUser(item: { userId?: unknown } | null | undefined, userId: string): item is { userId: string } {
   return !!item && item.userId === userId;
@@ -86,7 +74,11 @@ async function summarizeText(text: string): Promise<string> {
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
-  const prompt = `아래 문서 내용을 한국어로 간결하게 요약해 주세요.\n\n---\n${text}\n---\n\n요약:`;
+  const prompt = `아래 문서 내용을 한국어로 간결하게 요약해 주세요.
+---
+${text}
+---
+요약:`;
 
   const generationConfig: GenerationConfig = {
     maxOutputTokens: SUMMARIZE_MAX_OUTPUT_TOKENS,
@@ -129,6 +121,19 @@ export async function POST(
       return NextResponse.json({ message: '해당 문서는 요약 처리 중입니다.' }, { status: 409 });
     }
 
+    // Optional async path via SQS (non-blocking)
+    if (SUMMARIZE_ASYNC) {
+      await updateStatus(userId, documentId, 'PROCESSING');
+      try {
+        await enqueueSummarizeJob(userId, documentId);
+      } catch (e) {
+        console.error('Failed to enqueue summarize job:', e);
+        await updateStatus(userId, documentId, 'FAILED');
+        return NextResponse.json({ message: '요약 작업 큐잉에 실패했습니다.' }, { status: 500 });
+      }
+      return NextResponse.json({ documentId, status: 'PROCESSING', queued: true }, { status: 202 });
+    }
+
     await updateStatus(userId, documentId, 'PROCESSING');
 
     const { text, contentType } = await getObjectText(BUCKET, doc.s3Key);
@@ -154,7 +159,9 @@ export async function POST(
       if (uid && docId) {
         await updateStatus(uid, docId, 'FAILED');
       }
-    } catch {}
+    } catch (innerError) {
+      console.error('Failed to update status to FAILED in error handler:', innerError);
+    }
     return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
