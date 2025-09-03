@@ -37,10 +37,12 @@ function buildPresignClient() {
 }
 
 function isValidFilename(name: string): boolean {
-  // Restrictive allowlist: alphanumerics, dot, underscore, hyphen only
+  // Allow most characters but block potentially harmful ones for path traversal.
+  // 한글, 공백, 대부분의 특수문자를 허용하되, 경로 조작에 사용될 수 있는 문자는 차단합니다.
   if (!name || name.length > 128) return false;
   if (name.startsWith('.')) return false; // avoid hidden files
-  return /^[A-Za-z0-9._-]+$/.test(name);
+  // Block characters that are problematic in file paths or URLs like / \ : * ? " < > |
+  return !/[/\\:*?"<>|]/.test(name);
 }
 
 export async function POST(req: NextRequest) {

@@ -38,7 +38,8 @@ export async function extractTextFromBuffer(buf: Buffer, contentType?: string): 
     return buf.toString('utf-8');
   }
   if (type === 'application/pdf' || type.includes('pdf')) {
-    const pdfParseMod = await import('pdf-parse');
+    // Import from internal implementation to avoid index.js debug self-test reading ./test/data
+    const pdfParseMod = await import('pdf-parse/lib/pdf-parse.js');
     const pdfParse = (pdfParseMod.default as unknown) as PdfParse;
     const data = await pdfParse(buf);
     const text: string = data?.text || '';

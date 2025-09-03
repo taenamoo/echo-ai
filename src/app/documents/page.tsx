@@ -175,6 +175,7 @@ export default function DocumentsPage() {
           push({ message: `업로드 완료: ${f.name}`, type: 'success' });
           setProgress(prev => ({ ...prev, [f.name]: 100 }));
         } catch (ex: any) {
+          console.log('Upload error', ex);
           const msg = ex.response?.data?.message || '업로드 중 오류가 발생했습니다.';
           push({ message: `업로드 실패: ${f.name} - ${msg}`, type: 'error' });
         }

@@ -24,4 +24,9 @@ fi
 echo "[LocalStack Init] Applying CORS configuration for bucket: $BUCKET"
 awslocal s3api put-bucket-cors \
   --bucket "$BUCKET" \
-  --cors-configuration 'CORSRules=[{AllowedOrigins=["*"],AllowedMethods=["PUT","GET","HEAD"],AllowedHeaders=["*"],ExposeHeaders=["ETag"],MaxAgeSeconds=300}]'
+  --cors-configuration 'CORSRules=[{AllowedOrigins=["*"],AllowedMethods=["POST","PUT","GET","HEAD"],AllowedHeaders=["*"],ExposeHeaders=["ETag"],MaxAgeSeconds=300}]'
+
+# aws s3api put-bucket-cors \
+#   --endpoint-url=http://localhost:4566 \
+#   --bucket test-bucket \
+#   --cors-configuration '{"CORSRules":[{"AllowedOrigins":["*"],"AllowedMethods":["POST","PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":300}]}'
