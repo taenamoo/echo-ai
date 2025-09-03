@@ -7,11 +7,14 @@ import { getUserIdFromRequest } from '@/lib/api/auth';
 import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
 
-const BUCKET = process.env.S3_BUCKET_NAME as string | undefined;
+const BUCKET = process.env.S3_BUCKET_NAME;
 const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 45000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
+
+const PK_PREFIX_USER = 'USER#';
+const SK_PREFIX_DOC = 'DOC#';
 
 type DocumentItem = {
   PK: string;
@@ -28,46 +31,15 @@ type DocumentItem = {
   updatedAt?: string;
 };
 
-function isOwnedByUser(item: unknown, userId: string): item is DocumentItem {
-  return !!item && typeof (item as any).userId === 'string' && (item as any).userId === userId;
-}
-
-async function streamToString(body: any): Promise<string> {
-  if (!body) return '';
-  // Node.js Readable stream
-  if (typeof body.on === 'function') {
-    return await new Promise<string>((resolve, reject) => {
-      const chunks: Buffer[] = [];
-      body.on('data', (chunk: Buffer) => chunks.push(chunk));
-      body.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
-      body.on('error', reject);
-    });
-  }
-  // Web ReadableStream
-  if (typeof body.getReader === 'function') {
-    const reader = body.getReader();
-    const chunks: Uint8Array[] = [];
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) chunks.push(value);
-    }
-    const total = chunks.reduce((acc, cur) => new Uint8Array([...acc, ...cur]), new Uint8Array());
-    return new TextDecoder('utf-8').decode(total);
-  }
-  // Blob
-  if (typeof body.text === 'function') {
-    return await body.text();
-  }
-  return String(body);
+function isOwnedByUser(item: { userId?: unknown } | null | undefined, userId: string): item is { userId: string } {
+  return !!item && item.userId === userId;
 }
 
 async function loadDocument(userId: string, documentId: string): Promise<DocumentItem | null> {
   const res = await docClient.send(
     new GetCommand({
       TableName: MAIN_TABLE_NAME,
-      Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
+      Key: { PK: `${PK_PREFIX_USER}${userId}`, SK: `${SK_PREFIX_DOC}${documentId}` },
     })
   );
   if (!res.Item) return null;
@@ -79,7 +51,7 @@ async function updateStatus(
   userId: string,
   documentId: string,
   status: 'PENDING' | 'UPLOADED' | 'PROCESSING' | 'COMPLETE' | 'FAILED',
-  partial?: Partial<Pick<DocumentItem, 'summaryText' | 'filetype' | 'filesize'>>
+  partial?: Partial<Pick<DocumentItem, 'summaryText'>>
 ) {
   const now = new Date().toISOString();
   const exprParts = ['#status = :status', '#updatedAt = :updatedAt'];
@@ -93,7 +65,7 @@ async function updateStatus(
   await docClient.send(
     new UpdateCommand({
       TableName: MAIN_TABLE_NAME,
-      Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
+      Key: { PK: `${PK_PREFIX_USER}${userId}`, SK: `${SK_PREFIX_DOC}${documentId}` },
       UpdateExpression: 'SET ' + exprParts.join(', '),
       ExpressionAttributeNames: names,
       ExpressionAttributeValues: values,
@@ -120,21 +92,20 @@ async function summarizeText(text: string): Promise<string> {
     maxOutputTokens: SUMMARIZE_MAX_OUTPUT_TOKENS,
   };
 
-  const work = async () => {
-    const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
-    const resp = await result.response;
-    return resp.text();
-  };
-
-  // Soft timeout wrapper (does not cancel underlying request, but limits server wait time)
-  const timeoutPromise = new Promise<string>((_, reject) => {
-    const id = setTimeout(() => {
-      clearTimeout(id);
-      reject(new Error('Summarization timed out'));
-    }, SUMMARIZE_TIMEOUT_MS);
+  return await new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Summarization timed out')), SUMMARIZE_TIMEOUT_MS);
+    (async () => {
+      try {
+        const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
+        const resp = await result.response;
+        clearTimeout(timer);
+        resolve(resp.text());
+      } catch (err) {
+        clearTimeout(timer);
+        reject(err);
+      }
+    })();
   });
-
-  return Promise.race([work(), timeoutPromise]) as Promise<string>;
 }
 
 export async function POST(
@@ -153,12 +124,12 @@ export async function POST(
     const doc = await loadDocument(userId, documentId);
     if (!doc) return NextResponse.json({ message: '문서를 찾을 수 없거나 권한이 없습니다.' }, { status: 404 });
 
-    await updateStatus(userId, documentId, 'PROCESSING');
-
     // Prevent concurrent summarization when already processing
     if ((doc.status || '').toUpperCase() === 'PROCESSING') {
       return NextResponse.json({ message: '해당 문서는 요약 처리 중입니다.' }, { status: 409 });
     }
+
+    await updateStatus(userId, documentId, 'PROCESSING');
 
     const { text, contentType } = await getObjectText(BUCKET, doc.s3Key);
 
@@ -176,13 +147,12 @@ export async function POST(
     return NextResponse.json({ documentId, status: 'COMPLETE', summary, summaryText: summary });
   } catch (error: any) {
     console.error('Summarize Error:', error);
-    // Best-effort: try to reflect FAILED if we can parse userId/docId
+    // Best-effort: reflect FAILED using known params
     try {
-      const url = new URL(req.url);
-      const documentId = url.pathname.split('/').filter(Boolean).pop() || '';
-      const userId = getUserIdFromRequest(req);
-      if (userId && documentId) {
-        await updateStatus(userId, documentId, 'FAILED');
+      const uid = getUserIdFromRequest(req);
+      const docId = params.documentId;
+      if (uid && docId) {
+        await updateStatus(uid, docId, 'FAILED');
       }
     } catch {}
     return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.' }, { status: 500 });
