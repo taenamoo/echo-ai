@@ -40,11 +40,14 @@ export async function GET(
     const getRes = await docClient.send(
       new GetCommand({
         TableName: MAIN_TABLE_NAME,
-        Key: { PK: , SK:  },
+        Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
       })
     );
     if (!getRes.Item)
       return NextResponse.json({ message: '문서를 찾을 수 없습니다.' }, { status: 404 });
+    if ((getRes.Item as any).userId !== userId) {
+      return NextResponse.json({ message: '문서에 접근할 권한이 없습니다.' }, { status: 403 });
+    }
 
     return NextResponse.json(getRes.Item);
   } catch (error) {
@@ -71,22 +74,25 @@ export async function DELETE(
     const getRes = await docClient.send(
       new GetCommand({
         TableName: MAIN_TABLE_NAME,
-        Key: { PK: , SK:  },
+        Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
       })
     );
     if (!getRes.Item)
       return NextResponse.json({ message: '문서를 찾을 수 없습니다.' }, { status: 404 });
+    if ((getRes.Item as any).userId !== userId) {
+      return NextResponse.json({ message: '문서를 삭제할 권한이 없습니다.' }, { status: 403 });
+    }
 
     if (!BUCKET)
       return NextResponse.json({ message: 'S3_BUCKET_NAME이 설정되지 않았습니다.' }, { status: 500 });
 
-    const prefix = ;
+    const prefix = `uploads/${userId}/${documentId}/`;
     await deleteS3Prefix(BUCKET, prefix);
 
     await docClient.send(
       new DeleteCommand({
         TableName: MAIN_TABLE_NAME,
-        Key: { PK: , SK:  },
+        Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
       })
     );
 
@@ -96,4 +102,3 @@ export async function DELETE(
     return NextResponse.json({ message: '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }
-
