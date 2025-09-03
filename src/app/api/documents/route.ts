@@ -175,6 +175,7 @@ export async function GET(req: NextRequest) {
       status: it.status,
       createdAt: it.createdAt,
       updatedAt: it.updatedAt || null,
+      summaryText: it.summaryText || null,
     }));
 
     const nextCursor = res.LastEvaluatedKey
