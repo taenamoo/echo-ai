@@ -14,6 +14,7 @@ export default function DocumentsPage() {
   const [items, setItems] = useState<any[]>([]);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [loadingList, setLoadingList] = useState<boolean>(false);
+  const [summarizingId, setSummarizingId] = useState<string | null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -65,6 +66,31 @@ export default function DocumentsPage() {
   const handleDelete = useDeleteHandler(accessToken, async () => {
     await fetchList();
   });
+
+  const handleSummarize = async (documentId: string) => {
+    if (!accessToken) return;
+    try {
+      setSummarizingId(documentId);
+      const baseUrl = window.location.origin;
+      const res = await axios.post(`${baseUrl}/api/documents/${documentId}/summarize`, {}, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        validateStatus: () => true,
+      });
+      if (res.status === 202) {
+        // mark as processing; polling will refresh
+        setItems((prev) => prev.map((it) => it.documentId === documentId ? { ...it, status: 'PROCESSING' } : it));
+      } else if (res.status >= 200 && res.status < 300) {
+        // completed synchronously; refresh list to get status
+        await fetchList();
+      } else {
+        setErrorMessage(res.data?.message || '요약 요청에 실패했습니다.');
+      }
+    } catch (e: any) {
+      setErrorMessage(e.response?.data?.message || '요약 요청 중 오류가 발생했습니다.');
+    } finally {
+      setSummarizingId(null);
+    }
+  };
 
   // Auto-poll when there are PROCESSING items
   useEffect(() => {
@@ -237,6 +263,9 @@ export default function DocumentsPage() {
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
                         <button onClick={() => window.location.href = `/documents/${it.documentId}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700">상세</button>
+                        <button onClick={() => handleSummarize(it.documentId)} disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId} className="bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400">
+                          {summarizingId===it.documentId ? '요약 중...' : '요약'}
+                        </button>
                         <button onClick={() => handleDelete(it.documentId)} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200">삭제</button>
                       </td>
                     </tr>
