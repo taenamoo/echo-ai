@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth/token';
+import { requireAuth } from '@/lib/api/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -47,12 +47,9 @@ function isValidFilename(name: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-    const userId = decoded.userId as string;
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
+    const userId = auth.userId;
 
     if (!BUCKET) {
       return NextResponse.json({ message: 'S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.' }, { status: 500 });

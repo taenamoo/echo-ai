@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 import StatusBadge from '@/app/documents/components/StatusBadge';
 import { formatDate, formatSize } from '@/lib/ui/format';
 import { useToast } from '@/lib/ui/ToastProvider';

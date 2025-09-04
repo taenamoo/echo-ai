@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "db:migrate": "dotenv -e .env.local -- tsx scripts/create-dynamodb-table.ts"
+    "db:migrate": "dotenv -e .env.local -- tsx scripts/create-dynamodb-table.ts",
+    "test:auth": "dotenv -e .env.local -- tsx scripts/tests/auth.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.848.0",
