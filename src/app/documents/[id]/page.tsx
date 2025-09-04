@@ -120,16 +120,6 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-md">
-        <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-800">Echo AI</h1>
-          <div className="space-x-2">
-            <Link href="/documents" aria-label="문서 목록으로 돌아가기" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">목록으로 돌아가기</Link>
-            <button onClick={() => router.replace('/auth/logout')} aria-label="로그아웃" className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500">로그아웃</button>
-          </div>
-        </nav>
-      </header>
-
       <main className="container mx-auto px-6 py-8">
         {loading ? (
           <p className="text-gray-600">로딩 중...</p>
