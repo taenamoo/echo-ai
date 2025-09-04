@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ToastProvider } from '@/lib/ui/ToastProvider';
+import { SessionExpiredListener } from '@/app/components/SessionExpiredListener';
+import HeaderBar from '@/app/components/HeaderBar';
+import { UserProvider } from '@/lib/auth/UserContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -41,15 +45,15 @@ export default function RootLayout({
 
 // Small client wrapper to host the ToastProvider in the app shell
 function ClientToast({ children }: { children: React.ReactNode }) {
-  // Dynamic import avoided; simple re-export
-  const { ToastProvider } = require('@/lib/ui/ToastProvider');
-  const { SessionExpiredListener } = require('@/app/components/SessionExpiredListener');
   const pos = process.env.NEXT_PUBLIC_TOAST_POSITION || 'top-right';
   const dur = Number(process.env.NEXT_PUBLIC_TOAST_DURATION || 3000);
   return (
     <ToastProvider position={pos} defaultDuration={isNaN(dur) ? 3000 : dur}>
-      <SessionExpiredListener />
-      {children}
+      <UserProvider>
+        <HeaderBar />
+        <SessionExpiredListener />
+        {children}
+      </UserProvider>
     </ToastProvider>
   );
 }
