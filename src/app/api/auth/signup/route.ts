@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import { QueryCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { hashPassword } from '@/lib/auth/password';
+import { hashPassword, validatePasswordPolicy } from '@/lib/auth/password';
 import { generateAccessToken } from '@/lib/auth/token';
 
 export async function POST(req: NextRequest) {
@@ -12,6 +12,15 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json(
         { message: '이메일과 비밀번호를 입력해주세요.' },
+        { status: 400 }
+      );
+    }
+
+    // 비밀번호 정책: 최소 8자, 숫자/문자 조합, 공백 금지
+    const pwCheck = validatePasswordPolicy(password);
+    if (!pwCheck.ok) {
+      return NextResponse.json(
+        { message: pwCheck.message || '비밀번호 정책을 충족하지 않습니다.' },
         { status: 400 }
       );
     }
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     await docClient.send(putCommand);
 
-    const accessToken = generateAccessToken(userId, email);
+    const accessToken = generateAccessToken(userId, email, { expiresIn: '1h' });
 
     return NextResponse.json(
       {
