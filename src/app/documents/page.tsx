@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, ChangeEvent, FormEvent, useEffect } from 'react';
+import React, { useState, ChangeEvent, FormEvent, useEffect } from 'react';
 import axios from '@/lib/axios';
 import StatusBadge from '@/app/documents/components/StatusBadge';
 import { formatDate, formatSize } from '@/lib/ui/format';
@@ -186,7 +186,7 @@ export default function DocumentsPage() {
           s3Form.append('file', f);
           setProgress(prev => ({ ...prev, [f.name]: 0 }));
           await axios.post(url, s3Form, {
-            onUploadProgress: (evt) => {
+            onUploadProgress: (evt: { loaded: number; total?: number }) => {
               if (evt.total) {
                 const pct = Math.round((evt.loaded * 100) / evt.total);
                 setProgress(prev => ({ ...prev, [f.name]: pct }));
@@ -283,8 +283,8 @@ export default function DocumentsPage() {
           const s3Form = new FormData();
           Object.entries(fields || {}).forEach(([k, v]) => s3Form.append(k, v));
           s3Form.append('file', f);
-          setProgress(prev => ({ ...prev, [f.name]: 0 }));
-          await axios.post(url, s3Form, { onUploadProgress: (evt) => {
+          setProgress(prev => ({ ...prev, [f.name]: 0 })); // Initialize progress for the current file
+          await axios.post(url, s3Form, { onUploadProgress: (evt: { loaded: number; total?: number }) => {
             if (evt.total) setProgress(prev => ({ ...prev, [f.name]: Math.round((evt.loaded * 100) / evt.total) }));
           }});
           await axios.post(`${baseUrl}/api/documents`, { key, filename: f.name, filetype: f.type, filesize: f.size }, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
@@ -327,9 +327,9 @@ export default function DocumentsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Main Content */}
-      <main className="flex flex-col items-center justify-center p-4 mt-6">
-        <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-8 space-y-6">
-          <h2 className="text-3xl font-bold text-center text-gray-800">
+      <main className="container mx-auto p-4">
+        <div className="w-full max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8 space-y-6">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-center text-gray-800">
             AI 문서 요약 서비스
           </h2>
 
@@ -345,7 +345,7 @@ export default function DocumentsPage() {
                 role="button"
                 aria-label="파일을 드래그 앤 드롭하여 업로드"
                 tabIndex={0}
-                className={`w-full border-2 ${isDragging ? 'border-blue-500' : 'border-dashed border-gray-300'} rounded-md p-4 text-center text-sm text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500`}
+                className={`w-full border-2 ${isDragging ? 'border-blue-500' : 'border-dashed border-gray-300'} rounded-md p-4 md:p-6 text-center text-sm md:text-base text-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500`}
               >
                 여기로 파일을 드래그하여 업로드하거나 아래에서 선택하세요.
               </div>
@@ -431,54 +431,100 @@ export default function DocumentsPage() {
                 <button disabled={loadingList} onClick={() => fetchList()} className="text-sm text-gray-600 hover:text-gray-800">새로고침</button>
               </div>
             </div>
-            <div className="overflow-x-auto border rounded">
-              <table className="min-w-full text-sm">
+            <div className="border rounded overflow-hidden md:overflow-x-auto">
+              <table className="min-w-full table-fixed text-sm md:text-base">
                 <thead className="bg-gray-100 text-gray-700">
                   <tr>
-                    <th className="text-left p-3">파일명</th>
-                    <th className="text-left p-3">크기</th>
-                    <th className="text-left p-3">생성일</th>
-                    <th className="text-left p-3">요약</th>
-                    <th className="text-left p-3">상태</th>
-                    <th className="text-right p-3">액션</th>
+                    <th className="text-left p-3 whitespace-nowrap w-1/2 md:w-2/5">파일명</th>
+                    <th className="text-left p-3 whitespace-nowrap w-16">크기</th>
+                    <th className="text-left p-3 whitespace-nowrap w-24">생성일</th>
+                    <th className="text-left p-3 whitespace-nowrap md:w-2/5 hidden md:table-cell">요약</th>
+                    <th className="text-left p-3 whitespace-nowrap w-20">상태</th>
+                    <th className="text-right p-3 whitespace-nowrap w-32 hidden md:table-cell">액션</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((it) => (
-                    <tr key={it.documentId} className="border-t">
-                      <td className="p-3 text-gray-800">{it.filename}</td>
+                    <React.Fragment key={it.documentId}>
+                    <tr className="border-t align-top">
+                      <td className="p-3 text-gray-800 line-clamp-2 sm:truncate sm:whitespace-nowrap max-w-[140px] sm:max-w-[220px] md:max-w-[320px] lg:max-w-none" title={it.filename}>{it.filename}</td>
                       <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>
-                      <td className="p-3 text-gray-600">{formatDate(it.createdAt)}</td>
-                      <td className="p-3 text-gray-600 max-w-[280px] truncate" title={it.summaryText || ''}>{truncate(it.summaryText, 80)}</td>
+                      <td className="p-3 text-gray-600 whitespace-nowrap">{formatDate(it.createdAt)}</td>
+                      <td className="p-3 text-gray-600 hidden md:table-cell">
+                        <div className="break-words md:line-clamp-1 lg:line-clamp-2" title={it.summaryText || ''}>{it.summaryText || ''}</div>
+                      </td>
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
-                      <td className="p-3 text-right space-x-2">
-                        <button
-                          onClick={() => window.location.href = `/documents/${it.documentId}`}
-                          aria-label={`문서 상세 보기 ${it.filename}`}
-                          title="상세 보기"
-                          className="inline-flex items-center gap-1 bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
-                        >
-                          📄 상세
-                        </button>
-                        <button
-                          onClick={() => handleSummarize(it.documentId)}
-                          aria-label={`문서 요약 실행 ${it.filename}`}
-                          title="요약 실행"
-                          disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId}
-                          className="inline-flex items-center gap-1 bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-emerald-500"
-                        >
-                          {summarizingId===it.documentId ? '⏳ 요약 중' : '📝 요약'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(it.documentId)}
-                          aria-label={`문서 삭제 ${it.filename}`}
-                          title="삭제"
-                          className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
-                        >
-                          🗑 삭제
-                        </button>
+                      <td className="p-3 hidden md:table-cell">
+                        <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+                          <button
+                            onClick={() => window.location.href = `/documents/${it.documentId}`}
+                            aria-label={`문서 상세 보기 ${it.filename}`}
+                            title="상세 보기"
+                            className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+                          >
+                            <span className="mr-1">📄</span>
+                            상세
+                          </button>
+                          <button
+                            onClick={() => handleSummarize(it.documentId)}
+                            aria-label={`문서 요약 실행 ${it.filename}`}
+                            title="요약 실행"
+                            disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId}
+                            className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-emerald-500"
+                          >
+                            <span className="mr-1">📝</span>
+                            {summarizingId===it.documentId ? '요약 중' : '요약'}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(it.documentId)}
+                            aria-label={`문서 삭제 ${it.filename}`}
+                            title="삭제"
+                            className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
+                          >
+                            <span className="mr-1">🗑</span>
+                            삭제
+                          </button>
+                        </div>
                       </td>
                     </tr>
+                    <tr className="md:hidden border-b">
+                      <td className="p-3 text-gray-700" colSpan={6}>
+                        <details className="summary-toggle">
+                          <summary className="cursor-pointer inline-flex items-center gap-1 text-gray-700 hover:text-gray-900">
+                            <span className="icon-closed text-gray-500">▶</span>
+                            <span className="icon-open text-gray-500">▼</span>
+                            <span className="label-closed">요약 보기</span>
+                            <span className="label-open">요약 닫기</span>
+                          </summary>
+                          <div className="mt-2 text-gray-700 whitespace-pre-wrap">{it.summaryText || '요약 내용이 없습니다.'}</div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <button
+                              onClick={() => window.location.href = `/documents/${it.documentId}`}
+                              aria-label={`문서 상세 보기 ${it.filename}`}
+                              className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                            >
+                              📄 상세
+                            </button>
+                            <button
+                              onClick={() => handleSummarize(it.documentId)}
+                              aria-label={`문서 요약 실행 ${it.filename}`}
+                              disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId}
+                              className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              📝 {summarizingId===it.documentId ? '요약 중' : '요약'}
+                            </button>
+                            <button
+                              onClick={() => handleDelete(it.documentId)}
+                              aria-label={`문서 삭제 ${it.filename}`}
+                              className="inline-flex items-center h-8 px-3 rounded-md text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                            >
+                              🗑 삭제
+                            </button>
+                          </div>
+                        </details>
+                      </td>
+                    </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
