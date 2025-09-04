@@ -145,6 +145,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
                 <p className="text-sm text-gray-500">ID: {detail.documentId} · 생성일: {formatDate(detail.createdAt || null)} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
               </div>
               <div className="space-x-2">
+                <Link href="/documents" aria-label="목록으로 돌아가기" className="bg-white border text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400">목록</Link>
                 <button onClick={handleDelete} aria-label="문서 삭제" className="bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">삭제</button>
                 <button onClick={handleSummarize} aria-label="문서 요약 실행" disabled={summarizing || detail.status === 'PROCESSING'} className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-blue-500">
                   {summarizing ? '요약 중...' : '요약 실행'}
