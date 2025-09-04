@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getAuthStatus } from '@/lib/api/auth';
+import { requireAuth } from '@/lib/api/auth';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -89,11 +89,8 @@ const buildHierarchy = (studies: any[]): StudyNode[] => {
 export async function GET(req: NextRequest) {
   try {
     // 1. 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const auth = getAuthStatus(req);
-    if (auth.status !== 'ok') {
-      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
-      return NextResponse.json({ message: msg }, { status: 401 });
-    }
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
 
     // 2. DynamoDB에 보낼 쿼리 명령을 준비합니다.
     //    user_id를 기준으로 해당 사용자의 모든 스터디 노트를 조회합니다.
@@ -128,11 +125,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     // 1. 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const auth = getAuthStatus(req);
-    if (auth.status !== 'ok') {
-      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
-      return NextResponse.json({ message: msg }, { status: 401 });
-    }
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
 
     // 2. React 클라이언트의 폼(StudyForm)에서 보낸 요청 본문(body)을 파싱합니다.
     const body = await req.json();

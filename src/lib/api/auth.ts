@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { verifyToken, verifyTokenDetailed } from '@/lib/auth/token';
 
 export function getUserIdFromRequest(req: NextRequest): string | null {
@@ -24,4 +24,23 @@ export function getAuthStatus(req: NextRequest): AuthStatus {
   const userId = payload?.userId;
   if (!userId || typeof userId !== 'string') return { status: 'invalid' };
   return { status: 'ok', userId };
+}
+
+export const AUTH_ERROR_MESSAGE: Record<'missing'|'expired'|'invalid', string> = {
+  missing: '인증 토큰이 없습니다.',
+  expired: '만료된 토큰입니다.',
+  invalid: '유효하지 않은 토큰입니다.',
+};
+
+export type RequireAuthResult =
+  | { ok: true; userId: string }
+  | { ok: false; res: NextResponse };
+
+export function requireAuth(req: NextRequest): RequireAuthResult {
+  const status = getAuthStatus(req);
+  if (status.status !== 'ok') {
+    const msg = AUTH_ERROR_MESSAGE[status.status];
+    return { ok: false, res: NextResponse.json({ message: msg }, { status: 401 }) };
+  }
+  return { ok: true, userId: status.userId };
 }
