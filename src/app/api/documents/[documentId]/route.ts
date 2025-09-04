@@ -33,6 +33,7 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    // userId is derived from the Authorization token, not from params
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -62,6 +63,7 @@ export async function DELETE(
   { params }: { params: { documentId: string } }
 ) {
   try {
+    // userId is derived from the Authorization token, not from params
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
