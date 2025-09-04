@@ -16,10 +16,11 @@ axios.interceptors.response.use(
         try {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('accessToken');
-            // Optionally, show a simple alert to guide re-login
-            // eslint-disable-next-line no-alert
-            alert('세션이 만료되었거나 유효하지 않습니다. 다시 로그인해주세요.');
-            window.location.href = '/';
+            // Dispatch a lightweight event so UI can show toast/modal if desired
+            try { window.dispatchEvent(new CustomEvent('auth:session-expired')); } catch {}
+            // Redirect with hint for future UX handling
+            const target = '/?session=expired';
+            window.location.href = target;
           }
         } catch {
           // ignore storage errors
@@ -31,4 +32,3 @@ axios.interceptors.response.use(
 );
 
 export default axios;
-
