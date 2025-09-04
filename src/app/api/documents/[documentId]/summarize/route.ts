@@ -3,7 +3,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
-import { getUserIdFromRequest } from '@/lib/api/auth';
+import { getAuthStatus, requireAuth } from '@/lib/api/auth';
 import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
 import type { DocumentItem } from '@/types/document';
@@ -107,8 +107,9 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
+    const userId = auth.userId;
     const documentId = params.documentId;
 
     if (!BUCKET) {
@@ -156,7 +157,8 @@ export async function POST(
     console.error('Summarize Error:', error);
     // Best-effort: reflect FAILED using known params
     try {
-      const uid = getUserIdFromRequest(req);
+      const a = getAuthStatus(req);
+      const uid = a.status === 'ok' ? a.userId : null;
       const docId = params.documentId;
       if (uid && docId) {
         await updateStatus(uid, docId, 'FAILED');

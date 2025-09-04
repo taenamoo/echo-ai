@@ -8,7 +8,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 
 // --- TypeScript 인터페이스 정의 ---
 interface QuizQuestion {

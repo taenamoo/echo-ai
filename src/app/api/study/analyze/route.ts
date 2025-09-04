@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth/token';
+import { requireAuth } from '@/lib/api/auth';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // --- AI 모델 초기화 ---
@@ -51,11 +51,8 @@ async function callAiModel(prompt: string): Promise<string> {
 export async function POST(req: NextRequest) {
   try {
     // 1. [인증] 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
 
     // 2. [요청 파싱] 클라이언트에서 보낸 분석 대상을 추출합니다.
     const { content, good_example, bad_example } = await req.json();
