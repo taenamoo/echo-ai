@@ -4,6 +4,7 @@ import "./globals.css";
 import { ToastProvider } from '@/lib/ui/ToastProvider';
 import { SessionExpiredListener } from '@/app/components/SessionExpiredListener';
 import HeaderBar from '@/app/components/HeaderBar';
+import { UserProvider } from '@/lib/auth/UserContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,9 +49,11 @@ function ClientToast({ children }: { children: React.ReactNode }) {
   const dur = Number(process.env.NEXT_PUBLIC_TOAST_DURATION || 3000);
   return (
     <ToastProvider position={pos} defaultDuration={isNaN(dur) ? 3000 : dur}>
-      <HeaderBar />
-      <SessionExpiredListener />
-      {children}
+      <UserProvider>
+        <HeaderBar />
+        <SessionExpiredListener />
+        {children}
+      </UserProvider>
     </ToastProvider>
   );
 }
