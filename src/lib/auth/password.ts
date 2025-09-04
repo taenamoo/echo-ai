@@ -11,7 +11,7 @@ export const comparePassword = async (password:string, hashedPassword: string): 
 
 export function validatePasswordPolicy(password: string): { ok: boolean; message?: string } {
     if (typeof password !== 'string') {
-        return { ok: false, message: '비밀번호가 올바르지 않습니다.' };
+        return { ok: false, message: '비밀번호는 문자열이어야 합니다.' };
     }
     if (password.length < 8) {
         return { ok: false, message: '비밀번호는 최소 8자 이상이어야 합니다.' };

@@ -20,7 +20,9 @@ export default function LoginPage() {
     try {
       const token = localStorage.getItem('accessToken');
       if (token) router.replace('/documents');
-    } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('Failed to access localStorage:', e);
+    }
   }, [router]);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -98,4 +100,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

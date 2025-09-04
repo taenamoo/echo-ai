@@ -24,7 +24,7 @@ function mockReq(authHeader?: string): NextRequest {
   if (authHeader) headers.set('authorization', authHeader);
   const reqLike = {
     headers: {
-      get: (key: string) => headers.get(key.toLowerCase()) || headers.get(key) || null,
+      get: (key: string) => headers.get(key.toLowerCase()) || null,
     },
   } as any;
   return reqLike as unknown as NextRequest;
@@ -48,8 +48,10 @@ async function testVerifyTokenDetailed() {
   const invalid = verifyTokenDetailed(token + 'x');
   assert(invalid.ok === false && invalid.reason === 'invalid', 'tampered token should be invalid');
 
-  const short = generateAccessToken('u2', 'u2@example.com', { expiresIn: '1s' });
-  await new Promise((r) => setTimeout(r, 1200));
+  const SHORT_EXPIRE_SECONDS = 1;
+  const WAIT_AFTER_EXPIRE_MS = SHORT_EXPIRE_SECONDS * 1000 + 600; // allow buffer
+  const short = generateAccessToken('u2', 'u2@example.com', { expiresIn: `${SHORT_EXPIRE_SECONDS}s` });
+  await new Promise((r) => setTimeout(r, WAIT_AFTER_EXPIRE_MS));
   const expired = verifyTokenDetailed(short);
   assert(expired.ok === false && expired.reason === 'expired', 'expired token should be expired');
   log('verifyTokenDetailed');
@@ -95,4 +97,3 @@ async function testRequireAuth() {
     process.exitCode = 1;
   }
 })();
-
