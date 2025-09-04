@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Access Token 생성
-    const accessToken = generateAccessToken(user.userId, user.email);
+    const accessToken = generateAccessToken(user.userId, user.email, { expiresIn: '1h' });
 
     // 5. 로그인 성공 응답 반환
     return NextResponse.json({

@@ -1,6 +1,14 @@
 import jwt from 'jsonwebtoken';
 
-export const generateAccessToken = (userId: string, email: string): string => {
+type SignOpts = {
+  expiresIn?: string | number;
+};
+
+export const generateAccessToken = (
+  userId: string,
+  email: string,
+  opts: SignOpts = { expiresIn: '1h' }
+): string => {
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
@@ -8,7 +16,7 @@ export const generateAccessToken = (userId: string, email: string): string => {
   }
 
   const payload = { userId, email };
-  const token = jwt.sign(payload, secret, { expiresIn: '1d' });
+  const token = jwt.sign(payload, secret, { expiresIn: opts.expiresIn ?? '1h' });
   return token;
 };
 
@@ -24,7 +32,7 @@ export const generateVerificationToken = (email: string): string => {
   return token;
 };
 
-export const verifyToken = (token: string): any => {
+export const verifyToken = (token: string): any | null => {
   const secret = process.env.JWT_SECRET;
 
   if (!secret) {
@@ -34,7 +42,12 @@ export const verifyToken = (token: string): any => {
   try {
     const decoded = jwt.verify(token, secret);
     return decoded;
-  } catch (error) {
-    throw new Error('Invalid or expired token');
+  } catch (error: any) {
+    // Normalize to null so callers can consistently return 401
+    if (error?.name === 'TokenExpiredError') {
+      // Optionally log or handle expiration specifically
+      return null;
+    }
+    return null;
   }
 };
