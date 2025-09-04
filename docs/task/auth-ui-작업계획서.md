@@ -32,8 +32,8 @@
 
 5) UX/에러 처리
   - 로딩/검증 표시, 접근성 고려
-  - 토큰 만료/무효 시 안내: 레이아웃에서 `session=expired` 쿼리 및 `auth:session-expired` 이벤트를 감지하여 토스트 표시(`ToastProvider`)
-  - FE 처리 흐름: axios 인터셉터가 토큰 삭제 후 `/?session=expired`로 이동 → 레이아웃 리스너가 토스트 안내 및 쿼리 정리
+  - 토큰 만료/무효 시 안내: 레이아웃에서 `reason=expired`(또는 `session=expired`) 쿼리 및 `auth:session-expired` 이벤트를 감지하여 토스트 표시(`ToastProvider`)
+  - FE 처리 흐름: axios 인터셉터가 토큰 삭제 후 `/auth/login?reason=expired`로 이동 → 레이아웃 리스너가 토스트 안내 및 쿼리 정리
 
 -----
 

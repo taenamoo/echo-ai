@@ -44,7 +44,7 @@ Notes
   - `JWT_SECRET` — used to sign/verify access tokens. Missing this will throw at runtime in server utilities to avoid insecure defaults. In development, set any non-empty value (example: `JWT_SECRET=TEST`).
 - Token expiry: access tokens default to 1 hour.
 - Standardized 401 messages: '인증 토큰이 없습니다.' | '만료된 토큰입니다.' | '유효하지 않은 토큰입니다.'
-- Frontend handling: a shared Axios instance (`src/lib/axios`) clears invalid/expired tokens and redirects to `/?session=expired`. It also emits a `window` event `auth:session-expired` so the UI can show a toast/modal if desired.
+- Frontend handling: a shared Axios instance (`src/lib/axios`) clears invalid/expired tokens and redirects to `/auth/login?reason=expired`. It also emits a `window` event `auth:session-expired` so the UI can show a toast/modal if desired.
 
 ## Learn More
 
