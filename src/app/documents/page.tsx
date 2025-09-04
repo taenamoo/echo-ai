@@ -20,6 +20,9 @@ export default function DocumentsPage() {
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortKey, setSortKey] = useState<'createdAt'|'filename'|'filesize'>('createdAt');
+  const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken');
@@ -408,9 +411,36 @@ export default function DocumentsPage() {
           )}
 
           <section className="mt-8">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
               <h3 className="text-xl font-semibold text-gray-800">내 문서</h3>
-              <button disabled={loadingList} onClick={() => fetchList()} className="text-sm text-gray-600 hover:text-gray-800">새로고침</button>
+              <div className="flex items-center gap-2 ml-auto">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="파일명 검색"
+                  aria-label="파일명 검색"
+                  className="border rounded px-2 py-1 text-sm"
+                />
+                <select
+                  value={`${sortKey}_${sortDir}`}
+                  onChange={(e) => {
+                    const [k, d] = e.target.value.split('_') as any;
+                    setSortKey(k);
+                    setSortDir(d);
+                  }}
+                  aria-label="정렬 옵션"
+                  className="border rounded px-2 py-1 text-sm bg-white"
+                >
+                  <option value="createdAt_desc">최신순</option>
+                  <option value="createdAt_asc">오래된순</option>
+                  <option value="filename_asc">파일명 A→Z</option>
+                  <option value="filename_desc">파일명 Z→A</option>
+                  <option value="filesize_desc">파일크기 큰순</option>
+                  <option value="filesize_asc">파일크기 작은순</option>
+                </select>
+                <button disabled={loadingList} onClick={() => fetchList()} className="text-sm text-gray-600 hover:text-gray-800">새로고침</button>
+              </div>
             </div>
             <div className="overflow-x-auto border rounded">
               <table className="min-w-full text-sm">
@@ -425,7 +455,7 @@ export default function DocumentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((it) => (
+                  {getDisplayedItems(items, searchTerm, sortKey, sortDir).map((it) => (
                     <tr key={it.documentId} className="border-t">
                       <td className="p-3 text-gray-800">{it.filename}</td>
                       <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>
@@ -486,6 +516,25 @@ function validateFilesClient(files: File[]): { valid: boolean; message?: string 
     }
   }
   return { valid: true };
+}
+
+function getDisplayedItems(
+  items: any[],
+  searchTerm: string,
+  sortKey: 'createdAt'|'filename'|'filesize',
+  sortDir: 'asc'|'desc'
+) {
+  const q = (searchTerm || '').trim().toLowerCase();
+  const filtered = q ? items.filter((it) => (it.filename || '').toLowerCase().includes(q)) : items.slice();
+  const dir = sortDir === 'asc' ? 1 : -1;
+  filtered.sort((a, b) => {
+    const va = sortKey === 'filename' ? (a.filename || '') : sortKey === 'filesize' ? (a.filesize || 0) : new Date(a.createdAt || 0).getTime();
+    const vb = sortKey === 'filename' ? (b.filename || '') : sortKey === 'filesize' ? (b.filesize || 0) : new Date(b.createdAt || 0).getTime();
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return 0;
+  });
+  return filtered;
 }
 
 // local helper bound to component state via closure
