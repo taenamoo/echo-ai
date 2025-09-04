@@ -41,6 +41,15 @@ export default function DocumentsPage() {
     if (e.target.files && e.target.files.length > 0) {
       const filesArr = Array.from(e.target.files);
       // Keep first for button enablement, but we'll process all on submit
+      // client-side pre-validation
+      const { valid, message } = validateFilesClient(filesArr);
+      if (!valid) {
+        setErrorMessage(message || '허용되지 않는 파일이 포함되어 있습니다.');
+        setFile(null);
+        setSelectedNames([]);
+        setSelectedTotalBytes(0);
+        return;
+      }
       setFile(filesArr[0]);
       setSelectedNames(filesArr.map(f => f.name));
       setSelectedTotalBytes(filesArr.reduce((acc, f) => acc + (f.size || 0), 0));
@@ -143,6 +152,12 @@ export default function DocumentsPage() {
       // Sequentially process files
       for (let i = 0; i < files.length; i++) {
         const f = files.item(i)!;
+        // validate each file again before upload
+        const v = validateFilesClient([f]);
+        if (!v.valid) {
+          push({ message: `업로드 불가: ${f.name} - ${v.message}`, type: 'warning' });
+          continue;
+        }
         try {
           // 1) Presign 요청
           const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
@@ -228,9 +243,15 @@ export default function DocumentsPage() {
     const dt = e.dataTransfer;
     const files = dt.files;
     if (!files || files.length === 0) return;
+    const arr = Array.from(files);
+    const v = validateFilesClient(arr);
+    if (!v.valid) {
+      setErrorMessage(v.message || '허용되지 않는 파일이 포함되어 있습니다.');
+      return;
+    }
     // Reflect first file to enable button and list names for clarity
     setFile(files.item(0) || null);
-    setSelectedNames(Array.from(files).map(f => f.name));
+    setSelectedNames(arr.map(f => f.name));
     // Build a transient input-like object to reuse handler logic
     const baseUrl = window.location.origin;
     setSummary('');
@@ -239,6 +260,11 @@ export default function DocumentsPage() {
     try {
       for (let i = 0; i < files.length; i++) {
         const f = files.item(i)!;
+        const v = validateFilesClient([f]);
+        if (!v.valid) {
+          push({ message: `업로드 불가: ${f.name} - ${v.message}`, type: 'warning' });
+          continue;
+        }
         try {
           const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
             filename: f.name,
@@ -438,6 +464,28 @@ function truncate(text?: string | null, n: number = 80) {
 function getMaxUploadLabel() {
   const n = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB || 25);
   return isNaN(n) ? '25 MB' : `${n} MB`;
+}
+
+function validateFilesClient(files: File[]): { valid: boolean; message?: string } {
+  const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_SIZE_MB || 25);
+  const MAX = isNaN(MAX_MB) ? 25 * 1024 * 1024 : MAX_MB * 1024 * 1024;
+  const ALLOWED = new Set([
+    'text/plain',
+    'text/markdown',
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+  ]);
+  for (const f of files) {
+    if (!ALLOWED.has(f.type)) {
+      return { valid: false, message: '허용되지 않은 파일 형식입니다.' };
+    }
+    if (f.size > MAX) {
+      return { valid: false, message: `파일 크기가 제한(${Math.round(MAX/1024/1024)}MB)을 초과했습니다.` };
+    }
+  }
+  return { valid: true };
 }
 
 // local helper bound to component state via closure
