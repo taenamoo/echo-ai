@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { verifyToken } from '@/lib/auth/token';
 import { requireAuth } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import type { DocumentItem, DocumentStatus } from '@/types/document';

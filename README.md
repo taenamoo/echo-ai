@@ -38,6 +38,14 @@ Notes
 - On first boot, DynamoDB tables are auto-created by `dynamodb-init` service.
 - If ports are in use, adjust them in `docker-compose.yml`.
 
+### Auth configuration
+
+- Required env vars in `.env.local`:
+  - `JWT_SECRET` — used to sign/verify access tokens. Missing this will throw at runtime in server utilities to avoid insecure defaults. In development, set any non-empty value (example: `JWT_SECRET=TEST`).
+- Token expiry: access tokens default to 1 hour.
+- Standardized 401 messages: '인증 토큰이 없습니다.' | '만료된 토큰입니다.' | '유효하지 않은 토큰입니다.'
+- Frontend handling: a shared Axios instance (`src/lib/axios`) clears invalid/expired tokens and redirects to `/?session=expired`. It also emits a `window` event `auth:session-expired` so the UI can show a toast/modal if desired.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
