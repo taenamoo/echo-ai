@@ -95,7 +95,7 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-        <p className="text-center text-sm text-gray-600">계정이 없으신가요? 회원가입은 추후 제공됩니다.</p>
+        <p className="text-center text-sm text-gray-600">계정이 없으신가요? <a href="/auth/signup" className="text-blue-600 hover:underline">회원가입</a></p>
       </div>
     </div>
   );

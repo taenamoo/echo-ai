@@ -44,10 +44,12 @@ function ClientToast({ children }: { children: React.ReactNode }) {
   // Dynamic import avoided; simple re-export
   const { ToastProvider } = require('@/lib/ui/ToastProvider');
   const { SessionExpiredListener } = require('@/app/components/SessionExpiredListener');
+  const HeaderBar = require('@/app/components/HeaderBar').default;
   const pos = process.env.NEXT_PUBLIC_TOAST_POSITION || 'top-right';
   const dur = Number(process.env.NEXT_PUBLIC_TOAST_DURATION || 3000);
   return (
     <ToastProvider position={pos} defaultDuration={isNaN(dur) ? 3000 : dur}>
+      <HeaderBar />
       <SessionExpiredListener />
       {children}
     </ToastProvider>
