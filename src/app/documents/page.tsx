@@ -20,6 +20,8 @@ export default function DocumentsPage() {
   const [summarizingId, setSummarizingId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
+  const [selectedNames, setSelectedNames] = useState<string[]>([]);
+  const [selectedTotalBytes, setSelectedTotalBytes] = useState<number>(0);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortKey, setSortKey] = useState<'createdAt'|'updatedAt'|'filename'|'filesize'>('createdAt');
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
@@ -543,24 +545,7 @@ function validateFilesClient(files: File[]): { valid: boolean; message?: string 
   return { valid: true };
 }
 
-function getDisplayedItems(
-  items: any[],
-  searchTerm: string,
-  sortKey: 'createdAt'|'filename'|'filesize',
-  sortDir: 'asc'|'desc'
-) {
-  const q = (searchTerm || '').trim().toLowerCase();
-  const filtered = q ? items.filter((it) => (it.filename || '').toLowerCase().includes(q)) : items.slice();
-  const dir = sortDir === 'asc' ? 1 : -1;
-  filtered.sort((a, b) => {
-    const va = sortKey === 'filename' ? (a.filename || '') : sortKey === 'filesize' ? (a.filesize || 0) : new Date(a.createdAt || 0).getTime();
-    const vb = sortKey === 'filename' ? (b.filename || '') : sortKey === 'filesize' ? (b.filesize || 0) : new Date(b.createdAt || 0).getTime();
-    if (va < vb) return -1 * dir;
-    if (va > vb) return 1 * dir;
-    return 0;
-  });
-  return filtered;
-}
+// removed: client-side filter/sort helper (server now handles q/sort)
 
 // local helper bound to component state via closure
 function useDeleteHandler(accessToken: string | null, onAfter?: () => void, onError?: (message: string) => void) {

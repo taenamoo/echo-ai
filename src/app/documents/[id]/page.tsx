@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, use } from 'react';
 import axios from '@/lib/axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -19,8 +19,8 @@ type DocDetail = {
   updatedAt?: string;
 };
 
-export default function DocumentDetailPage({ params }: { params: { id: string } }) {
-  const documentId = params.id;
+export default function DocumentDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: documentId } = use(params);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [detail, setDetail] = useState<DocDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -125,7 +125,7 @@ export default function DocumentDetailPage({ params }: { params: { id: string } 
           <h1 className="text-xl font-bold text-gray-800">Echo AI</h1>
           <div className="space-x-2">
             <Link href="/documents" aria-label="문서 목록으로 돌아가기" className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">목록으로 돌아가기</Link>
-            <button onClick={() => { localStorage.removeItem('accessToken'); window.location.href = '/'; }} aria-label="로그아웃" className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500">로그아웃</button>
+            <button onClick={() => router.replace('/auth/logout')} aria-label="로그아웃" className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 focus-visible:ring-2 focus-visible:ring-red-500">로그아웃</button>
           </div>
         </nav>
       </header>

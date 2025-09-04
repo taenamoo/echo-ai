@@ -67,7 +67,8 @@
 - 경로: `GET /api/documents` (사용자별 페이징 지원)
 - 처리: `PK = USER#<userId>`로 Query, `SK`가 `DOC#` prefix인 아이템만 반환
   - 검색: `q`(filename 부분 일치, 대소문자 비구분) 지원
-  - 정렬: `sortKey`(`createdAt|updatedAt|filename|filesize`), `sortDir`(`asc|desc`) 지원(응답 내 정렬)
+- 정렬: `sortKey`(`createdAt|updatedAt|filename|filesize`), `sortDir`(`asc|desc`) 지원(응답 내 정렬)
+  - 제한: 현재 검색/정렬은 파티션 내 in-memory 처리로 구현되어 있어 대량 데이터 시 비효율적일 수 있음. 장기적으로는 GSI 또는 검색 엔진(OpenSearch 등) 도입을 고려.
 - 수용 기준: 로그인 사용자 문서 목록이 페이지네이션 포함 정상 반환
 
 5) 문서 상세 조회 API
