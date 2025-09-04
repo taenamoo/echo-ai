@@ -15,7 +15,7 @@
 // useEffect: 라이프사이클 이벤트를 처리하여 외부 데이터 fetching, 구독 등 부수 효과(side effect)를 수행합니다.
 // useRef: 렌더링과 무관한 값을 저장하거나 DOM 요소에 직접 접근할 때 사용합니다.
 import { useState, useEffect, FormEvent, useRef, MouseEvent, TouchEvent } from 'react';
-import axios from 'axios';
+import axios from '@/lib/axios';
 
 // --- 하위 컴포넌트 임포트 ---
 // [React 개념: 컴포넌트 합성(Composition)]
