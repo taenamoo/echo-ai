@@ -7,14 +7,16 @@ export function SessionExpiredListener() {
   const { push } = useToast();
 
   useEffect(() => {
-    // 1) Query param check (?session=expired)
+    // 1) Query param check (?session=expired or ?reason=expired)
     try {
       if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
-        if (url.searchParams.get('session') === 'expired') {
+        const sessionExpired = url.searchParams.get('session') === 'expired' || url.searchParams.get('reason') === 'expired';
+        if (sessionExpired) {
           push('세션이 만료되었습니다. 다시 로그인해주세요.', 'warning');
           // Clean the query without reload
           url.searchParams.delete('session');
+          url.searchParams.delete('reason');
           window.history.replaceState({}, '', url.toString());
         }
       }
@@ -30,4 +32,3 @@ export function SessionExpiredListener() {
 
   return null;
 }
-

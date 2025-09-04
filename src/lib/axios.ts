@@ -18,8 +18,8 @@ axios.interceptors.response.use(
             localStorage.removeItem('accessToken');
             // Dispatch a lightweight event so UI can show toast/modal if desired
             try { window.dispatchEvent(new CustomEvent('auth:session-expired')); } catch {}
-            // Redirect with hint for future UX handling
-            const target = '/?session=expired';
+            // Redirect to login with reason hint for UX handling
+            const target = '/auth/login?reason=expired';
             window.location.href = target;
           }
         } catch {
