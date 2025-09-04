@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth/token';
+import { getAuthStatus } from '@/lib/api/auth';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -83,11 +83,11 @@ async function callAiSearchModel(context: string, query: string): Promise<string
 export async function POST(req: NextRequest) {
   try {
     // 1. [인증] 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
 
     // 2. [요청 파싱] 클라이언트에서 보낸 검색어(searchTerm)를 추출합니다.
     const { searchTerm } = await req.json();
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     const queryCommand = new QueryCommand({
       TableName: STUDY_TABLE_NAME,
       KeyConditionExpression: 'user_id = :userId',
-      ExpressionAttributeValues: { ':userId': decoded.userId },
+      ExpressionAttributeValues: { ':userId': auth.userId },
     });
     const { Items } = await docClient.send(queryCommand);
     

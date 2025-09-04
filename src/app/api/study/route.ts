@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { verifyToken } from '@/lib/auth/token';
+import { getAuthStatus } from '@/lib/api/auth';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -89,18 +89,18 @@ const buildHierarchy = (studies: any[]): StudyNode[] => {
 export async function GET(req: NextRequest) {
   try {
     // 1. 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-    
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
 
     // 2. DynamoDB에 보낼 쿼리 명령을 준비합니다.
     //    user_id를 기준으로 해당 사용자의 모든 스터디 노트를 조회합니다.
     const queryCommand = new QueryCommand({
       TableName: TABLE_NAME,
       KeyConditionExpression: 'user_id = :userId',
-      ExpressionAttributeValues: { ':userId': decoded.userId },
+      ExpressionAttributeValues: { ':userId': auth.userId },
     });
 
     // 3. DynamoDB에 쿼리를 실행하고 결과를 가져옵니다.
@@ -128,11 +128,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     // 1. 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
 
     // 2. React 클라이언트의 폼(StudyForm)에서 보낸 요청 본문(body)을 파싱합니다.
     const body = await req.json();
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
 
     // 4. DynamoDB에 저장할 새로운 스터디 객체를 생성합니다.
     const newStudy = {
-      user_id: decoded.userId,
+      user_id: auth.userId,
       study_id: uuidv4(), // [기능: 고유 ID 생성] 각 노트에 고유한 ID를 부여합니다. React 리스트의 'key' prop과 유사한 역할을 합니다.
       parent_id: body.parent_id || null,
       title: body.title,

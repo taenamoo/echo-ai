@@ -39,15 +39,26 @@ export const verifyToken = (token: string): any | null => {
     throw new Error('JWT_SECRET is not defined in environment variables.');
   }
 
+  const res = verifyTokenDetailed(token);
+  return res.ok ? res.payload : null;
+};
+
+export type VerifyTokenResult =
+  | { ok: true; payload: any }
+  | { ok: false; reason: 'expired' | 'invalid' };
+
+export const verifyTokenDetailed = (token: string): VerifyTokenResult => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET is not defined in environment variables.');
+  }
   try {
     const decoded = jwt.verify(token, secret);
-    return decoded;
+    return { ok: true, payload: decoded };
   } catch (error: any) {
-    // Normalize to null so callers can consistently return 401
     if (error?.name === 'TokenExpiredError') {
-      // Optionally log or handle expiration specifically
-      return null;
+      return { ok: false, reason: 'expired' };
     }
-    return null;
+    return { ok: false, reason: 'invalid' };
   }
 };
