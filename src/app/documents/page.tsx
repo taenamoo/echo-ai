@@ -71,6 +71,9 @@ export default function DocumentsPage() {
       const url = new URL(`${baseUrl}/api/documents`);
       url.searchParams.set('limit', '20');
       if (cursor) url.searchParams.set('cursor', cursor);
+      if (searchTerm) url.searchParams.set('q', searchTerm);
+      if (sortKey) url.searchParams.set('sortKey', sortKey);
+      if (sortDir) url.searchParams.set('sortDir', sortDir);
       const res = await axios.get(url.toString(), {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
@@ -86,7 +89,7 @@ export default function DocumentsPage() {
 
   useEffect(() => {
     if (accessToken) fetchList();
-  }, [accessToken]);
+  }, [accessToken, searchTerm, sortKey, sortDir]);
 
   const { push: pushToast } = useToast();
   const handleDelete = useDeleteHandler(
@@ -455,7 +458,7 @@ export default function DocumentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {getDisplayedItems(items, searchTerm, sortKey, sortDir).map((it) => (
+                  {items.map((it) => (
                     <tr key={it.documentId} className="border-t">
                       <td className="p-3 text-gray-800">{it.filename}</td>
                       <td className="p-3 text-gray-600">{formatSize(it.filesize)}</td>

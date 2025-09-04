@@ -66,6 +66,8 @@
 4) 문서 목록 조회 API
 - 경로: `GET /api/documents` (사용자별 페이징 지원)
 - 처리: `PK = USER#<userId>`로 Query, `SK`가 `DOC#` prefix인 아이템만 반환
+  - 검색: `q`(filename 부분 일치) 지원
+  - 정렬: `sortKey`(`createdAt|filename|filesize`), `sortDir`(`asc|desc`) 지원(응답 내 정렬)
 - 수용 기준: 로그인 사용자 문서 목록이 페이지네이션 포함 정상 반환
 
 5) 문서 상세 조회 API
