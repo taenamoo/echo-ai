@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthStatus } from '@/lib/api/auth';
+import { requireAuth } from '@/lib/api/auth';
 import { v4 as uuidv4 } from 'uuid';
 import { S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
@@ -47,11 +47,8 @@ function isValidFilename(name: string): boolean {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = getAuthStatus(req);
-    if (auth.status !== 'ok') {
-      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
-      return NextResponse.json({ message: msg }, { status: 401 });
-    }
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
     const userId = auth.userId;
 
     if (!BUCKET) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthStatus } from '@/lib/api/auth';
+import { requireAuth } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
@@ -33,11 +33,8 @@ export async function GET(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const auth = getAuthStatus(req);
-    if (auth.status !== 'ok') {
-      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
-      return NextResponse.json({ message: msg }, { status: 401 });
-    }
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
     const userId = auth.userId;
     const documentId = params.documentId;
 
@@ -65,11 +62,8 @@ export async function DELETE(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const auth = getAuthStatus(req);
-    if (auth.status !== 'ok') {
-      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
-      return NextResponse.json({ message: msg }, { status: 401 });
-    }
+    const auth = requireAuth(req);
+    if (!auth.ok) return auth.res;
     const userId = auth.userId;
     const documentId = params.documentId;
 
