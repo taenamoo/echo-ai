@@ -326,26 +326,8 @@ export default function DocumentsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation Header */}
-      <header className="bg-white shadow-md">
-        <nav className="container mx-auto px-6 py-3 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-800">Echo AI</h1>
-          <div>
-            <button onClick={() => window.location.href='/documents'} className="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition mr-2">
-              AI 문서 요약
-            </button>
-            <button onClick={() => window.location.href='/study'} className="text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-md transition mr-4">
-              스터디 노트
-            </button>
-            <button onClick={handleLogout} className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition">
-              로그아웃
-            </button>
-          </div>
-        </nav>
-      </header>
-
       {/* Main Content */}
-      <main className="flex flex-col items-center justify-center p-4 mt-10">
+      <main className="flex flex-col items-center justify-center p-4 mt-6">
         <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-8 space-y-6">
           <h2 className="text-3xl font-bold text-center text-gray-800">
             AI 문서 요약 서비스
