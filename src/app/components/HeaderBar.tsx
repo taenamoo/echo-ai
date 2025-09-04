@@ -2,11 +2,11 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import axios from '@/lib/axios';
+import { useUser } from '@/lib/auth/UserContext';
 
 export default function HeaderBar() {
   const [hasToken, setHasToken] = useState<boolean>(false);
-  const [email, setEmail] = useState<string | null>(null);
+  const { me, refresh } = useUser();
 
   useEffect(() => {
     try {
@@ -14,18 +14,8 @@ export default function HeaderBar() {
     } catch {
       setHasToken(false);
     }
-    // fetch /api/me when token exists
-    (async () => {
-      try {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return;
-        const baseUrl = window.location.origin;
-        const res = await axios.get(`${baseUrl}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
-        setEmail(res.data?.email || null);
-      } catch {
-        // ignore
-      }
-    })();
+    // ensure user info is loaded once per session
+    try { if (localStorage.getItem('accessToken')) refresh(); } catch {}
   }, []);
 
   return (
@@ -39,7 +29,7 @@ export default function HeaderBar() {
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">
-          {email && <span className="text-gray-600 hidden sm:inline" aria-label="현재 사용자 이메일">{email}</span>}
+          {me?.email && <span className="text-gray-600 hidden sm:inline" aria-label="현재 사용자 이메일">{me.email}</span>}
           {hasToken ? (
             <Link href="/auth/logout" className="text-gray-700 hover:underline">로그아웃</Link>
           ) : (
