@@ -3,7 +3,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
-import { getUserIdFromRequest } from '@/lib/api/auth';
+import { getAuthStatus } from '@/lib/api/auth';
 import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
 import type { DocumentItem } from '@/types/document';
@@ -107,8 +107,12 @@ export async function POST(
   { params }: { params: { documentId: string } }
 ) {
   try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
+    const userId = auth.userId;
     const documentId = params.documentId;
 
     if (!BUCKET) {
@@ -156,7 +160,8 @@ export async function POST(
     console.error('Summarize Error:', error);
     // Best-effort: reflect FAILED using known params
     try {
-      const uid = getUserIdFromRequest(req);
+      const a = getAuthStatus(req);
+      const uid = a.status === 'ok' ? a.userId : null;
       const docId = params.documentId;
       if (uid && docId) {
         await updateStatus(uid, docId, 'FAILED');

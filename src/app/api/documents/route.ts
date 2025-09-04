@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { verifyToken } from '@/lib/auth/token';
-import { getUserIdFromRequest } from '@/lib/api/auth';
+import { getAuthStatus } from '@/lib/api/auth';
 import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb'; // 수정된 부분
 import type { DocumentItem, DocumentStatus } from '@/types/document';
 import { s3Client } from '@/lib/aws/s3';
@@ -12,10 +12,12 @@ const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
 export async function POST(req: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) {
-      return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
     }
+    const userId = auth.userId;
 
     const contentType = req.headers.get('content-type') || '';
 
@@ -135,8 +137,12 @@ function createDocumentItem(
 // GET /api/documents?limit=20&cursor=<base64>
 export async function GET(req: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(req);
-    if (!userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
+    const userId = auth.userId;
 
     const { searchParams } = new URL(req.url);
     const limitParam = Number(searchParams.get('limit') || 20);

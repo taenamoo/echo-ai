@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth/token';
+import { getAuthStatus } from '@/lib/api/auth';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { PutCommand, DeleteCommand, GetCommand, BatchWriteCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
@@ -31,11 +31,11 @@ export async function PUT(req: NextRequest) {
     if (!id) return NextResponse.json({ message: 'ID가 필요합니다.' }, { status: 400 });
 
     // 2. [인증] 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
-    
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
 
     // 3. [요청 파싱] 클라이언트(StudyForm)에서 보낸 수정 데이터를 추출합니다.
     const body = await req.json();
@@ -45,7 +45,7 @@ export async function PUT(req: NextRequest) {
     // 4. [데이터 조회] 수정하기 전에, 원본 데이터를 조회하여 기존 값과 병합할 준비를 합니다.
     const { Item: existingStudy } = await docClient.send(new GetCommand({
         TableName: TABLE_NAME,
-        Key: { user_id: decoded.userId, study_id: id }
+        Key: { user_id: auth.userId, study_id: id }
     }));
 
     // [클린 코드] 원본 데이터가 없는 경우를 명시적으로 처리하여 안정성을 높입니다.
@@ -87,13 +87,13 @@ export async function DELETE(req: NextRequest) {
     }
 
     // 2. [인증] 토큰 유효성을 검사합니다.
-    const token = req.headers.get('authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ message: '인증 토큰이 없습니다.' }, { status: 401 });
+    const auth = getAuthStatus(req);
+    if (auth.status !== 'ok') {
+      const msg = auth.status === 'missing' ? '인증 토큰이 없습니다.' : auth.status === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.';
+      return NextResponse.json({ message: msg }, { status: 401 });
+    }
 
-    const decoded = verifyToken(token);
-    if (!decoded || !decoded.userId) return NextResponse.json({ message: '유효하지 않은 토큰입니다.' }, { status: 401 });
-
-    const userId = decoded.userId;
+    const userId = auth.userId;
 
     // 3. [데이터 조회] 삭제할 노트의 하위 노트들을 찾기 위해 사용자의 모든 노트를 조회합니다.
     const queryCommand = new QueryCommand({
