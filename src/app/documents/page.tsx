@@ -21,7 +21,7 @@ export default function DocumentsPage() {
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [sortKey, setSortKey] = useState<'createdAt'|'filename'|'filesize'>('createdAt');
+  const [sortKey, setSortKey] = useState<'createdAt'|'updatedAt'|'filename'|'filesize'>('createdAt');
   const [sortDir, setSortDir] = useState<'asc'|'desc'>('desc');
 
   useEffect(() => {
@@ -435,8 +435,10 @@ export default function DocumentsPage() {
                   aria-label="정렬 옵션"
                   className="border rounded px-2 py-1 text-sm bg-white"
                 >
-                  <option value="createdAt_desc">최신순</option>
-                  <option value="createdAt_asc">오래된순</option>
+                  <option value="createdAt_desc">생성일 최신순</option>
+                  <option value="createdAt_asc">생성일 오래된순</option>
+                  <option value="updatedAt_desc">업데이트 최신순</option>
+                  <option value="updatedAt_asc">업데이트 오래된순</option>
                   <option value="filename_asc">파일명 A→Z</option>
                   <option value="filename_desc">파일명 Z→A</option>
                   <option value="filesize_desc">파일크기 큰순</option>
@@ -466,11 +468,31 @@ export default function DocumentsPage() {
                       <td className="p-3 text-gray-600 max-w-[280px] truncate" title={it.summaryText || ''}>{truncate(it.summaryText, 80)}</td>
                       <td className="p-3"><StatusBadge status={it.status || 'UPLOADED'} /></td>
                       <td className="p-3 text-right space-x-2">
-                        <button onClick={() => window.location.href = `/documents/${it.documentId}`} aria-label={`문서 상세 보기 ${it.filename}`} className="bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500">상세</button>
-                        <button onClick={() => handleSummarize(it.documentId)} aria-label={`문서 요약 실행 ${it.filename}`} disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId} className="bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-emerald-500">
-                          {summarizingId===it.documentId ? '요약 중...' : '요약'}
+                        <button
+                          onClick={() => window.location.href = `/documents/${it.documentId}`}
+                          aria-label={`문서 상세 보기 ${it.filename}`}
+                          title="상세 보기"
+                          className="inline-flex items-center gap-1 bg-blue-600 text-white py-1 px-3 rounded hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
+                          📄 상세
                         </button>
-                        <button onClick={() => handleDelete(it.documentId)} aria-label={`문서 삭제 ${it.filename}`} className="bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">삭제</button>
+                        <button
+                          onClick={() => handleSummarize(it.documentId)}
+                          aria-label={`문서 요약 실행 ${it.filename}`}
+                          title="요약 실행"
+                          disabled={String(it.status||'').toUpperCase()==='PROCESSING' || summarizingId===it.documentId}
+                          className="inline-flex items-center gap-1 bg-emerald-600 text-white py-1 px-3 rounded hover:bg-emerald-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-emerald-500"
+                        >
+                          {summarizingId===it.documentId ? '⏳ 요약 중' : '📝 요약'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(it.documentId)}
+                          aria-label={`문서 삭제 ${it.filename}`}
+                          title="삭제"
+                          className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 py-1 px-3 rounded hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400"
+                        >
+                          🗑 삭제
+                        </button>
                       </td>
                     </tr>
                   ))}

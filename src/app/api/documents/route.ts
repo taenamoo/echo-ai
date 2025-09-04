@@ -142,7 +142,7 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(100, isNaN(limitParam) ? 20 : limitParam));
     const cursor = searchParams.get('cursor');
     const q = searchParams.get('q') || '';
-    const sortKeyParam = (searchParams.get('sortKey') || 'createdAt') as 'createdAt'|'filename'|'filesize';
+    const sortKeyParam = (searchParams.get('sortKey') || 'createdAt') as 'createdAt'|'updatedAt'|'filename'|'filesize';
     const sortDirParam = (searchParams.get('sortDir') || 'desc') as 'asc'|'desc';
 
     const pk = `USER#${userId}`;
@@ -160,19 +160,10 @@ export async function GET(req: NextRequest) {
     let lastKey: any = ExclusiveStartKey;
     for (let safety = 0; safety < 10 && collected.length < limit; safety++) {
       const exprValues: Record<string, any> = { ':pk': pk, ':prefix': 'DOC#' };
-      const exprNames: Record<string, string> = {};
-      let filterExpr: string | undefined = undefined;
-      if (q) {
-        exprNames['#filename'] = 'filename';
-        exprValues[':q'] = q;
-        filterExpr = 'contains(#filename, :q)';
-      }
       const cmd = new QueryCommand({
         TableName: MAIN_TABLE_NAME,
         KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
         ExpressionAttributeValues: exprValues,
-        ExpressionAttributeNames: Object.keys(exprNames).length ? exprNames : undefined,
-        FilterExpression: filterExpr,
         Limit: limit,
         ExclusiveStartKey: lastKey,
         ScanIndexForward: false,
@@ -188,15 +179,25 @@ export async function GET(req: NextRequest) {
         updatedAt: it.updatedAt || null,
         summaryText: it.summaryText || null,
       }));
-      collected.push(...chunk);
+      const filteredChunk = q ? chunk.filter((it: any) => String(it.filename || '').toLowerCase().includes(q.toLowerCase())) : chunk;
+      collected.push(...filteredChunk);
       lastKey = res.LastEvaluatedKey;
       if (!lastKey) break;
     }
 
     const dir = sortDirParam === 'asc' ? 1 : -1;
     collected.sort((a, b) => {
-      const va = sortKeyParam === 'filename' ? (a.filename || '') : sortKeyParam === 'filesize' ? (a.filesize || 0) : new Date(a.createdAt || 0).getTime();
-      const vb = sortKeyParam === 'filename' ? (b.filename || '') : sortKeyParam === 'filesize' ? (b.filesize || 0) : new Date(b.createdAt || 0).getTime();
+      const timeOr = (x: any, key: 'createdAt'|'updatedAt') => new Date((x[key] || x.createdAt || 0)).getTime();
+      const va = sortKeyParam === 'filename'
+        ? (a.filename || '')
+        : sortKeyParam === 'filesize'
+          ? (a.filesize || 0)
+          : timeOr(a, sortKeyParam === 'updatedAt' ? 'updatedAt' : 'createdAt');
+      const vb = sortKeyParam === 'filename'
+        ? (b.filename || '')
+        : sortKeyParam === 'filesize'
+          ? (b.filesize || 0)
+          : timeOr(b, sortKeyParam === 'updatedAt' ? 'updatedAt' : 'createdAt');
       if (va < vb) return -1 * dir;
       if (va > vb) return 1 * dir;
       return 0;

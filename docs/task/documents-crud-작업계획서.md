@@ -19,8 +19,8 @@
 
 - 목록 조회: `GET /api/documents?limit=20&cursor=<lastSk>&q=<filename>&sortKey=<createdAt|filename|filesize>&sortDir=<asc|desc>`
   - 동작: PK=`USER#<userId>`로 Query, `SK` prefix=`DOC#`인 아이템만 반환
-  - 검색(q): `filename`에 대한 부분 일치(대소문자 구분)
-  - 정렬(sortKey/sortDir): 응답 내에서 정렬 적용(기본: createdAt desc)
+- 검색(q): `filename`에 대한 부분 일치(대소문자 비구분)
+- 정렬(sortKey/sortDir): 응답 내에서 정렬 적용(기본: createdAt desc). `updatedAt` 지원.
   - 페이지네이션: `LastEvaluatedKey` 기반 cursor 방식(필터 적용 시 여러 페이지를 조회하여 최대 `limit`개 수집)
   - 응답: `{ items: [...], nextCursor?: string }`
 
