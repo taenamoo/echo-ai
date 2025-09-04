@@ -130,6 +130,10 @@ function createDocumentItem(
   };
 }
 
+function timeOr(x: any, key: 'createdAt'|'updatedAt') {
+  return new Date((x?.[key] || x?.createdAt || 0)).getTime();
+}
+
 // GET /api/documents?limit=20&cursor=<base64>
 export async function GET(req: NextRequest) {
   try {
@@ -141,6 +145,9 @@ export async function GET(req: NextRequest) {
     const limitParam = Number(searchParams.get('limit') || 20);
     const limit = Math.max(1, Math.min(100, isNaN(limitParam) ? 20 : limitParam));
     const cursor = searchParams.get('cursor');
+    const q = searchParams.get('q') || '';
+    const sortKeyParam = (searchParams.get('sortKey') || 'createdAt') as 'createdAt'|'updatedAt'|'filename'|'filesize';
+    const sortDirParam = (searchParams.get('sortDir') || 'desc') as 'asc'|'desc';
 
     const pk = `USER#${userId}`;
 
@@ -153,34 +160,92 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const cmd = new QueryCommand({
-      TableName: MAIN_TABLE_NAME,
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
-      ExpressionAttributeValues: {
-        ':pk': pk,
-        ':prefix': 'DOC#',
-      },
-      Limit: limit,
-      ExclusiveStartKey,
-      ScanIndexForward: false,
+    // Fast path: no search and default sort(createdAt desc) → single query
+    if (!q && sortKeyParam === 'createdAt' && sortDirParam === 'desc') {
+      const cmd = new QueryCommand({
+        TableName: MAIN_TABLE_NAME,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        ExpressionAttributeValues: { ':pk': pk, ':prefix': 'DOC#' },
+        Limit: limit,
+        ExclusiveStartKey,
+        ScanIndexForward: false,
+      });
+      const res = await docClient.send(cmd);
+      const items = (res.Items || []).map((it: any) => ({
+        documentId: it.documentId,
+        filename: it.filename,
+        filetype: it.filetype,
+        filesize: it.filesize,
+        status: it.status,
+        createdAt: it.createdAt,
+        updatedAt: it.updatedAt || null,
+        summaryText: it.summaryText || null,
+      }));
+      const nextCursor = res.LastEvaluatedKey
+        ? Buffer.from(JSON.stringify(res.LastEvaluatedKey), 'utf8').toString('base64')
+        : undefined;
+      return NextResponse.json({ items, nextCursor });
+    }
+
+    const collected: any[] = [];
+    let lastKey: any = ExclusiveStartKey;
+    let hardNextCursor: string | undefined = undefined;
+    for (let safety = 0; safety < 25 && collected.length < limit; safety++) {
+      const exprValues: Record<string, any> = { ':pk': pk, ':prefix': 'DOC#' };
+      const cmd = new QueryCommand({
+        TableName: MAIN_TABLE_NAME,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+        ExpressionAttributeValues: exprValues,
+        Limit: limit,
+        ExclusiveStartKey: lastKey,
+        ScanIndexForward: false,
+      });
+      const res = await docClient.send(cmd);
+      const chunk = (res.Items || []).map((it: any) => ({
+        documentId: it.documentId,
+        filename: it.filename,
+        filetype: it.filetype,
+        filesize: it.filesize,
+        status: it.status,
+        createdAt: it.createdAt,
+        updatedAt: it.updatedAt || null,
+        summaryText: it.summaryText || null,
+      }));
+      const filteredChunk = q ? chunk.filter((it: any) => String(it.filename || '').toLowerCase().includes(q.toLowerCase())) : chunk;
+      const remaining = limit - collected.length;
+      if (filteredChunk.length >= remaining) {
+        const take = filteredChunk.slice(0, remaining);
+        collected.push(...take);
+        // Set cursor to the last returned item's key so next page continues correctly
+        const lastItem = take[take.length - 1];
+        const resumeKey = { PK: pk, SK: `DOC#${lastItem.documentId}` };
+        hardNextCursor = Buffer.from(JSON.stringify(resumeKey), 'utf8').toString('base64');
+        break;
+      } else {
+        collected.push(...filteredChunk);
+        lastKey = res.LastEvaluatedKey;
+        if (!lastKey) break;
+      }
+    }
+
+    const dir = sortDirParam === 'asc' ? 1 : -1;
+    collected.sort((a, b) => {
+      const va = sortKeyParam === 'filename'
+        ? (a.filename || '')
+        : sortKeyParam === 'filesize'
+          ? (a.filesize || 0)
+          : timeOr(a, sortKeyParam === 'updatedAt' ? 'updatedAt' : 'createdAt');
+      const vb = sortKeyParam === 'filename'
+        ? (b.filename || '')
+        : sortKeyParam === 'filesize'
+          ? (b.filesize || 0)
+          : timeOr(b, sortKeyParam === 'updatedAt' ? 'updatedAt' : 'createdAt');
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
     });
-    const res = await docClient.send(cmd);
-
-    const items = (res.Items || []).map((it: any) => ({
-      documentId: it.documentId,
-      filename: it.filename,
-      filetype: it.filetype,
-      filesize: it.filesize,
-      status: it.status,
-      createdAt: it.createdAt,
-      updatedAt: it.updatedAt || null,
-      summaryText: it.summaryText || null,
-    }));
-
-    const nextCursor = res.LastEvaluatedKey
-      ? Buffer.from(JSON.stringify(res.LastEvaluatedKey), 'utf8').toString('base64')
-      : undefined;
-
+    const items = collected.slice(0, limit);
+    const nextCursor = hardNextCursor || (lastKey ? Buffer.from(JSON.stringify(lastKey), 'utf8').toString('base64') : undefined);
     return NextResponse.json({ items, nextCursor });
   } catch (error) {
     console.error('List Documents Error:', error);
