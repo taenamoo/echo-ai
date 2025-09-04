@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from '@/lib/axios';
+import { validatePasswordPolicy } from '@/lib/auth/password';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -25,6 +26,13 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
     try {
+      // 클라이언트 측 비밀번호 정책 검사
+      const pw = validatePasswordPolicy(password);
+      if (!pw.ok) {
+        setError(pw.message || '비밀번호 정책을 충족하지 않습니다.');
+        setLoading(false);
+        return;
+      }
       const res = await axios.post('/api/auth/signup', { email, password });
       const token = res?.data?.accessToken as string | undefined;
       if (!token) {
@@ -92,4 +100,3 @@ export default function SignupPage() {
     </div>
   );
 }
-
