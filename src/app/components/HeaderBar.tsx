@@ -16,7 +16,15 @@ export default function HeaderBar() {
     }
     // ensure user info is loaded once per session
     try { if (localStorage.getItem('accessToken')) refresh(); } catch {}
-  }, []);
+  }, [refresh]);
+
+  useEffect(() => {
+    try {
+      setHasToken(!!localStorage.getItem('accessToken'));
+    } catch {
+      setHasToken(false);
+    }
+  }, [me]);
 
   return (
     <header className="w-full border-b bg-white">
