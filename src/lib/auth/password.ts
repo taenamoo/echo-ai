@@ -1,9 +1,11 @@
 import bcrypt from "bcryptjs";
-import { config } from '@/lib/config';
 
+// Note: Avoid importing server-only config at module scope to keep this file
+// safe for client-side imports (e.g., password policy checks in signup page).
+// Salt rounds are not a secret; default to 10 if not provided.
 export const hashPassword = async (password: string): Promise<string> => {
-    const salt = Number(config.hashSalt) || 10;
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const saltRounds = Number(process.env.HASH_SALT || 10);
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
     return hashedPassword;
 }
 

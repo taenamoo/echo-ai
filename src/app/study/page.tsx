@@ -526,17 +526,13 @@ export default function StudyPage() {
       setIsAnswerChecked(false);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('accessToken');
-    window.location.href = '/';
-  };
 
   // --- 메인 렌더링 ---
-  if (isLoading || !accessToken) return <div className="flex h-screen items-center justify-center bg-gray-100 text-gray-600">로딩 중...</div>;
+  if (isLoading || !accessToken) return <div className="flex min-h-with-header items-center justify-center bg-gray-100 text-gray-600">로딩 중...</div>;
 
   return (
     <>
-      <div className="flex flex-col h-screen bg-gray-100 font-sans">
+      <div className="flex flex-col min-h-with-header bg-gray-100 font-sans">
         <header className="bg-white shadow-sm sticky top-0 z-20">
             <div className="container mx-auto px-4">
                 <div className="flex justify-between items-center py-3">
@@ -546,14 +542,7 @@ export default function StudyPage() {
                         </svg>
                         <h1 className="text-xl font-bold text-gray-800">React 스터디</h1>
                     </div>
-                    <div>
-                        <button onClick={() => window.location.href='/documents'} className="text-gray-700 hover:bg-gray-100 py-2 px-4 rounded-md transition text-sm font-semibold mr-2">
-                        AI 문서 요약
-                        </button>
-                        <button onClick={handleLogout} className="bg-red-500 text-white py-2 px-4 rounded-md hover:bg-red-600 transition text-sm font-semibold">
-                        로그아웃
-                        </button>
-                    </div>
+                    <div />
                 </div>
                 <div className="border-b border-gray-200">
                     <nav className="-mb-px flex space-x-8 px-4" aria-label="Tabs">

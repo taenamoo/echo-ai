@@ -38,6 +38,7 @@ export default function DocumentsPage() {
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
+    try { window.dispatchEvent(new CustomEvent('auth:logout')); } catch {}
     // 상대 경로 대신 전체 URL을 사용하도록 수정
     window.location.href = window.location.origin;
   };
