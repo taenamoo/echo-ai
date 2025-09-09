@@ -13,6 +13,7 @@ export default function LogoutPage() {
   useEffect(() => {
     try {
       localStorage.removeItem('accessToken');
+      try { window.dispatchEvent(new CustomEvent('auth:logout')); } catch {}
       clear();
       push('로그아웃되었습니다.', 'info');
     } catch {
