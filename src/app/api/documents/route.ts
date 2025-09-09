@@ -6,8 +6,9 @@ import type { DocumentItem, DocumentStatus } from '@/types/document';
 import { s3Client } from '@/lib/aws/s3';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { config } from '@/lib/config';
 
-const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME;
+const S3_BUCKET_NAME = config.s3BucketName;
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,10 +65,6 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
     }
-    if (!S3_BUCKET_NAME) {
-      return NextResponse.json({ message: 'S3_BUCKET_NAME 환경 변수가 설정되지 않았습니다.' }, { status: 500 });
-    }
-
     const documentId = uuidv4();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const s3Key = `uploads/${userId}/${documentId}/${file.name}`;

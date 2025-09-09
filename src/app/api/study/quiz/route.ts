@@ -12,16 +12,12 @@
 
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI, SchemaType, GenerationConfig } from '@google/generative-ai';
-
-// --- 환경 변수 관리 ---
-// [클린 코드] 환경 변수는 한 곳에서 관리하며, 값이 없을 경우를 대비해 기본값을 설정합니다.
-// process.env는 서버 사이드에서만 접근 가능하므로 API 키를 안전하게 보호할 수 있습니다.
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+import { config } from '@/lib/config';
 
 // --- Google Generative AI 클라이언트 초기화 ---
 // [React 개념: 서버 사이드 렌더링(SSR) 및 API 라우트]
 // Next.js의 API 라우트는 서버에서 실행되므로, 외부 API(Gemini)와의 통신을 안전하게 처리할 수 있습니다.
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 
 /**
  * AI 퀴즈 생성 POST 요청 핸들러
