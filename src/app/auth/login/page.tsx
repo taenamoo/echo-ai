@@ -34,6 +34,7 @@ export default function LoginPage() {
       const token = res?.data?.accessToken as string | undefined;
       if (!token) throw new Error('로그인 응답에 토큰이 없습니다.');
       localStorage.setItem('accessToken', token);
+      try { window.dispatchEvent(new CustomEvent('auth:login')); } catch {}
       router.replace('/documents');
     } catch (err: any) {
       const msg = err?.response?.data?.message || '로그인에 실패했습니다.';

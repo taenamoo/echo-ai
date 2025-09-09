@@ -16,8 +16,9 @@ axios.interceptors.response.use(
         try {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('accessToken');
-            // Dispatch a lightweight event so UI can show toast/modal if desired
+            // Dispatch lightweight events so UI updates immediately in same tab
             try { window.dispatchEvent(new CustomEvent('auth:session-expired')); } catch {}
+            try { window.dispatchEvent(new CustomEvent('auth:logout')); } catch {}
             // Redirect to login with reason hint for UX handling
             const target = '/auth/login?reason=expired';
             window.location.href = target;

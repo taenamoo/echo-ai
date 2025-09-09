@@ -3,6 +3,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --header-height: 56px; /* h-14 */
 }
 
 @theme inline {
@@ -23,6 +24,48 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* App layout helpers */
+.min-h-with-header { min-height: calc(100vh - var(--header-height)); }
+
+/* Landing page background illustration */
+.landing-hero { position: relative; }
+.landing-bg {
+  position: absolute;
+  inset: 0;
+  background-color: #fdfcfb; /* light cream */
+  background-image: url('/marketing/landing-illustration.png');
+  background-repeat: no-repeat;
+  /* Match image height to viewport minus header, centered */
+  background-size: auto calc(100vh - var(--header-height));
+  background-position: center center;
+  pointer-events: none;
+}
+
+.landing-card {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e5e7eb; /* gray-200 */
+  border-radius: 14px;
+  padding: 28px 32px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  backdrop-filter: saturate(1.2) blur(2px);
+  top: calc(100vh - 400px);
+  left: 260px;
+}
+
+@media (max-width: 768px) {
+  .landing-card {
+    margin: 16px;
+    max-width: 90vw;
+  }
+  .landing-bg {
+    background-size: auto calc(100vh - var(--header-height));
+    background-position: center center;
+  }
 }
 
 /* Utilities */

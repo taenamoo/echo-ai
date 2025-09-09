@@ -41,6 +41,7 @@ export default function SignupPage() {
         return;
       }
       localStorage.setItem('accessToken', token);
+      try { window.dispatchEvent(new CustomEvent('auth:login')); } catch {}
       router.replace('/documents');
     } catch (err: any) {
       const msg = err?.response?.data?.message || '회원가입에 실패했습니다.';

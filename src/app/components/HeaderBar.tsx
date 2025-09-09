@@ -9,26 +9,44 @@ export default function HeaderBar() {
   const { me, refresh } = useUser();
 
   useEffect(() => {
+    // On mount: read token and refresh profile if present
     try {
-      setHasToken(!!localStorage.getItem('accessToken'));
+      const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
+      setHasToken(!!token);
+      if (token) refresh();
     } catch {
       setHasToken(false);
     }
-    // ensure user info is loaded once per session
-    try { if (localStorage.getItem('accessToken')) refresh(); } catch {}
+    // Listen to cross-tab token changes and interceptor logout events
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'accessToken') {
+        setHasToken(!!(e.newValue || localStorage.getItem('accessToken')));
+        if (e.newValue) refresh();
+      }
+    };
+    const onExpired = () => setHasToken(false);
+    const onLogin = () => { setHasToken(true); refresh(); };
+    const onLogout = () => setHasToken(false);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('auth:session-expired', onExpired as EventListener);
+    window.addEventListener('auth:login', onLogin as EventListener);
+    window.addEventListener('auth:logout', onLogout as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('auth:session-expired', onExpired as EventListener);
+      window.removeEventListener('auth:login', onLogin as EventListener);
+      window.removeEventListener('auth:logout', onLogout as EventListener);
+    };
   }, [refresh]);
 
   useEffect(() => {
-    try {
-      setHasToken(!!localStorage.getItem('accessToken'));
-    } catch {
-      setHasToken(false);
-    }
+    // Keep token flag in sync when user context changes
+    try { setHasToken(!!localStorage.getItem('accessToken')); } catch { setHasToken(false); }
   }, [me]);
 
   return (
-    <header className="w-full border-b bg-white">
-      <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
+    <header className="w-full border-b bg-white h-14" style={{ ['--header-height' as any]: '56px' }}>
+      <div className="mx-auto max-w-6xl px-4 h-full flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href="/" className="font-semibold text-gray-800">Echo AI</Link>
           <nav className="hidden sm:flex items-center gap-3 text-sm text-gray-700">
@@ -38,7 +56,7 @@ export default function HeaderBar() {
         </div>
         <div className="flex items-center gap-3 text-sm">
           {me?.email && <span className="text-gray-600 hidden sm:inline" aria-label="현재 사용자 이메일">{me.email}</span>}
-          {hasToken ? (
+          {(hasToken || !!me?.userId) ? (
             <Link href="/auth/logout" className="text-gray-700 hover:underline">로그아웃</Link>
           ) : (
             <>
