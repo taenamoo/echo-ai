@@ -8,8 +8,9 @@ import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 import { extractTextFromBuffer, streamToBuffer } from '@/lib/documents/text-extract';
 import type { DocumentItem } from '@/types/document';
 import { enqueueSummarizeJob } from '@/lib/documents/queue';
+import { config } from '@/lib/config';
 
-const BUCKET = process.env.S3_BUCKET_NAME || '';
+const BUCKET = config.s3BucketName;
 const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 45000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
@@ -70,9 +71,7 @@ async function getObjectText(bucket: string, key: string): Promise<{ text: strin
 }
 
 async function summarizeText(text: string): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY || '';
-  if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-  const genAI = new GoogleGenerativeAI(apiKey);
+  const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
   const promptTemplate = process.env.SUMMARIZE_PROMPT_TEMPLATE || `아래 문서 내용을 한국어로 간결하게 요약해 주세요.
 ---
@@ -111,10 +110,6 @@ export async function POST(
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
     const documentId = params.documentId;
-
-    if (!BUCKET) {
-      return NextResponse.json({ message: 'S3_BUCKET_NAME이 설정되지 않았습니다.' }, { status: 500 });
-    }
 
     const doc = await loadDocument(userId, documentId);
     if (!doc) return NextResponse.json({ message: '문서를 찾을 수 없거나 권한이 없습니다.' }, { status: 404 });

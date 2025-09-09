@@ -1,18 +1,19 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { config } from '@/lib/config';
 
 // .env.local 파일의 DYNAMODB_ENDPOINT 값을 사용하도록 변경
-const endpoint = process.env.DYNAMODB_ENDPOINT;
+const endpoint = config.dynamodbEndpoint;
 
 // log endpoint for debugging
 console.log('DynamoDB Endpoint:', endpoint);
 
 const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'ap-northeast-2',
+  region: config.awsRegion,
   endpoint: endpoint,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
+    accessKeyId: config.awsAccessKeyId || 'dummy',
+    secretAccessKey: config.awsSecretAccessKey || 'dummy',
   },
 });
 

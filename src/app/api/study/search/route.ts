@@ -15,10 +15,11 @@ import { requireAuth } from '@/lib/api/auth';
 import docClient, { STUDY_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { config } from '@/lib/config';
 
 // --- AI 모델 초기화 ---
 // [클린 코드] AI 모델 클라이언트를 전역 상수로 초기화하여 재사용하고, API 키는 환경 변수에서 안전하게 관리합니다.
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 
 /**
  * @function callAiSearchModel
