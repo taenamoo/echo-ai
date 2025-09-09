@@ -1,15 +1,16 @@
 import { SQSClient } from '@aws-sdk/client-sqs';
+import { config } from '@/lib/config';
 
-const isDev = process.env.NODE_ENV === 'development';
+const isDev = config.nodeEnv === 'development';
 
 export const sqsClient = new SQSClient({
-  region: process.env.AWS_REGION || 'ap-northeast-2',
-  endpoint: isDev ? (process.env.SQS_ENDPOINT || undefined) : undefined,
+  region: config.awsRegion,
+  endpoint: isDev ? config.sqsEndpoint : undefined,
   // In development allow dummy creds (LocalStack); in production rely on default provider chain
   credentials: isDev
     ? {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
+        accessKeyId: config.awsAccessKeyId || 'dummy',
+        secretAccessKey: config.awsSecretAccessKey || 'dummy',
       }
     : undefined,
 });

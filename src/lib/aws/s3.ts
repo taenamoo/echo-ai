@@ -1,19 +1,20 @@
 import { S3Client, S3ClientConfig } from '@aws-sdk/client-s3';
+import { config } from '@/lib/config';
 
-const isDevelopment = process.env.NODE_ENV === 'development';
+const isDevelopment = config.nodeEnv === 'development';
 
 const s3Config: S3ClientConfig = {
-  region: process.env.AWS_REGION || 'ap-northeast-2',
+  region: config.awsRegion,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'dummy',
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'dummy',
+    accessKeyId: config.awsAccessKeyId || 'dummy',
+    secretAccessKey: config.awsSecretAccessKey || 'dummy',
   },
 };
 
 if (isDevelopment) {
   // Prefer explicit endpoint if provided (e.g., set in docker-compose for container networking)
-  s3Config.endpoint = process.env.S3_ENDPOINT || 'http://localstack:4566';
-  s3Config.region = process.env.AWS_REGION || 'ap-northeast-2';
+  s3Config.endpoint = config.s3Endpoint || 'http://localstack:4566';
+  s3Config.region = config.awsRegion;
   s3Config.forcePathStyle = true;
 }
 

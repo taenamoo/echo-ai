@@ -4,8 +4,9 @@ import docClient, { MAIN_TABLE_NAME } from '@/lib/aws/dynamodb';
 import { GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client } from '@/lib/aws/s3';
 import { ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { config } from '@/lib/config';
 
-const BUCKET = process.env.S3_BUCKET_NAME as string | undefined;
+const BUCKET = config.s3BucketName;
 
 // Type guard for DynamoDB document item ownership
 function isOwnedByUser(item: unknown, userId: string): item is { userId: string } {
@@ -81,9 +82,6 @@ export async function DELETE(
     if (!isOwnedByUser(getRes.Item, userId)) {
       return NextResponse.json({ message: '문서를 삭제할 권한이 없습니다.' }, { status: 403 });
     }
-
-    if (!BUCKET)
-      return NextResponse.json({ message: 'S3_BUCKET_NAME이 설정되지 않았습니다.' }, { status: 500 });
 
     const prefix = `uploads/${userId}/${documentId}/`;
     await deleteS3Prefix(BUCKET, prefix);
