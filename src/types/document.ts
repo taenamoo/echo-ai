@@ -16,4 +16,7 @@ export type DocumentItem = {
 };
 
 // External lib types
-export type PdfParse = (data: Buffer) => Promise<{ text?: string }>;
+export type PdfParse = (
+  data: Buffer,
+  options?: { version?: string }
+) => Promise<{ text?: string }>;
