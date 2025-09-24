@@ -1,3 +1,3 @@
-export * from './dynamodb.js';
-export * from './s3.js';
-export * from './sqs.js';
+export * from './dynamodb';
+export * from './s3';
+export * from './sqs';

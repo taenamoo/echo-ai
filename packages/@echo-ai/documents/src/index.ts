@@ -1,2 +1,2 @@
-export * from './queue.js';
-export * from './text-extract.js';
+export * from './queue';
+export * from './text-extract';
