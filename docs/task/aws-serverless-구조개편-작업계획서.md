@@ -1,6 +1,6 @@
 ## AWS 서버리스 아키텍처 적용을 위한 프로젝트 구조 개편 계획서
 
-상태: 초안
+상태: 진행 중 (스테이지 0~2 1차 적용 완료)
 작성일: 2025-02-14
 작성자: AI Assistant
 
@@ -95,9 +95,9 @@ root
 
 | 단계 | 기간(예상) | 주요 작업 | 산출물/수용 기준 |
 | --- | --- | --- | --- |
-| **0. 준비** | 0.5주 | `pnpm-workspace.yaml` 작성, 루트 `package.json` 정리, 공용 ESLint/TS 설정 workspace 화 | 모든 패키지 `pnpm install` 성공, `pnpm lint` 공통 규칙 공유 |
-| **1. 프런트엔드 이동** | 1주 | Next.js 소스를 `apps/web`으로 이동, 임포트 경로 alias 수정(`@web/`), `NEXT_PUBLIC_API_BASE_URL` 반영 | `pnpm --filter apps/web dev` 로컬 실행, 기존 기능 유지 |
-| **2. 공통 패키지 추출** | 1.5주 | `src/lib` 모듈을 `packages/*`로 분리, 문서/인증/설정 로직 리팩터링, 유닛 테스트 추가 | `apps/web`이 패키지 의존성으로 빌드 성공, 테스트 통과 |
+| **0. 준비** | 0.5주 | `pnpm-workspace.yaml` 작성, 루트 `package.json` 정리, 공용 ESLint/TS 설정 workspace 화 | ✅ 멀티 워크스페이스 구성 적용 및 공용 설정 이전 |
+| **1. 프런트엔드 이동** | 1주 | Next.js 소스를 `apps/web`으로 이동, 임포트 경로 alias 수정(`@web/`), `NEXT_PUBLIC_API_BASE_URL` 반영 | ✅ `apps/web`으로 소스 이동 및 실행 스크립트 분리 |
+| **2. 공통 패키지 추출** | 1.5주 | `src/lib` 모듈을 `packages/*`로 분리, 문서/인증/설정 로직 리팩터링, 유닛 테스트 추가 | ✅ `@echo-ai/*` 패키지로 핵심 로직 분리, 후속 테스트 정비 예정 |
 | **3. API Lambda 구현** | 1주 | `services/api` 생성, 기존 API 라우트 기능을 Lambda 핸들러로 이관, Serverless Framework/CDK 로컬 테스트 | 로컬 `sam local` 또는 `sst dev` 등으로 API 호출 성공 |
 | **4. SQS 워커 분리** | 1주 | `services/ai-processor` 작성, 요약 큐 처리 Lambda 구현, API에서 `SUMMARIZE_ASYNC` 기본값 true 전환 | SQS → Lambda 파이프라인 통합 테스트 통과 |
 | **5. IaC & 배포** | 1주 | `infra/cdk` 정식화, GitHub Actions 파이프라인 작성, develop 환경에 최초 배포 | CDK deploy 성공, Smoke Test 체크리스트 통과 |

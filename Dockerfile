@@ -22,7 +22,17 @@ RUN apt-get install -y ca-certificates
 RUN update-ca-certificates --fresh
 
 ## 4. Install Dependencies
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
+
+# Pre-copy workspace manifests to leverage pnpm caching
+COPY apps/web/package.json apps/web/
+COPY packages/@echo-ai/auth/package.json packages/@echo-ai/auth/
+COPY packages/@echo-ai/aws-clients/package.json packages/@echo-ai/aws-clients/
+COPY packages/@echo-ai/config/package.json packages/@echo-ai/config/
+COPY packages/@echo-ai/core-domain/package.json packages/@echo-ai/core-domain/
+COPY packages/@echo-ai/documents/package.json packages/@echo-ai/documents/
+COPY services/api/package.json services/api/
+COPY services/ai-processor/package.json services/ai-processor/
 
 ## 5. pnpm Install
 # Set the store directory to a local path witnin the project
@@ -30,8 +40,8 @@ RUN pnpm config set store-dir .pnpm-store
 RUN pnpm install
 
 ## 7. Set Environment Variables
-COPY .env.local /app/.env.local
-COPY scripts/create-dynamodb-table.ts /app/scripts/create-dynamodb-table.ts
+COPY env.local_test /app/.env.local
+COPY scripts/migration/create-dynamodb-table.ts /app/scripts/migration/create-dynamodb-table.ts
 COPY setting/bash/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
