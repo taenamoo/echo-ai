@@ -1,16 +1,16 @@
 {
-  "name": "app",
+  "name": "echo-ai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "cross-env NODE_ENV=development next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "db:migrate": "dotenv -e .env.local -- tsx scripts/create-dynamodb-table.ts",
-    "test:auth": "dotenv -e .env.local -- tsx scripts/tests/auth.test.ts",
-    "pdfjs:pua": "tsx scripts/build-pdfjs-pua.ts",
-    "test:pdfjs:pua": "tsx scripts/tests/pdfjs-pua-benchmark.ts"
+    "dev": "pnpm --filter @echo-ai/web dev",
+    "build": "pnpm --filter @echo-ai/web build",
+    "start": "pnpm --filter @echo-ai/web start",
+    "lint": "pnpm --filter @echo-ai/web lint",
+    "db:migrate": "pnpm dlx tsx scripts/migration/create-dynamodb-table.ts",
+    "test:auth": "pnpm exec tsx scripts/tests/auth.test.ts",
+    "pdfjs:pua": "pnpm dlx tsx scripts/local/build-pdfjs-pua.ts",
+    "test:pdfjs:pua": "pnpm dlx tsx scripts/tests/pdfjs-pua-benchmark.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.848.0",

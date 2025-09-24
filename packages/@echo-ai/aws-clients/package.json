@@ -1,0 +1,20 @@
+{
+  "name": "@echo-ai/aws-clients",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dynamodb": "./src/dynamodb.ts",
+    "./s3": "./src/s3.ts",
+    "./sqs": "./src/sqs.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.848.0",
+    "@aws-sdk/client-s3": "^3.864.0",
+    "@aws-sdk/client-sqs": "^3.879.0",
+    "@aws-sdk/lib-dynamodb": "^3.850.0",
+    "@echo-ai/config": "workspace:*"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@echo-ai/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@aws-sdk/lib-dynamodb": "^3.850.0",
+    "@aws-sdk/s3-presigned-post": "^3.879.0",
+    "@echo-ai/auth": "workspace:*",
+    "@echo-ai/aws-clients": "workspace:*",
+    "@echo-ai/config": "workspace:*",
+    "@echo-ai/core-domain": "workspace:*",
+    "@echo-ai/documents": "workspace:*",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
+    "next": "15.4.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "cross-env": "^10.0.0",
+    "dotenv-cli": "^10.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.1",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

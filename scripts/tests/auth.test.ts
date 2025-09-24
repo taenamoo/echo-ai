@@ -6,9 +6,15 @@
  Uses tsx to run; no external test framework.
 */
 
-import { validatePasswordPolicy } from '@/lib/auth/password';
-import { generateAccessToken, verifyTokenDetailed } from '@/lib/auth/token';
-import { requireAuth, AUTH_ERROR_MESSAGE } from '@/lib/api/auth';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { config as loadEnv } from 'dotenv';
+import { validatePasswordPolicy, generateAccessToken, verifyTokenDetailed } from '../../packages/@echo-ai/auth/src/index';
+import { requireAuth, AUTH_ERROR_MESSAGE } from '../../apps/web/src/lib/api/auth';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+loadEnv({ path: resolve(__dirname, '../../env.local_test') });
 import type { NextRequest } from 'next/server';
 
 function assert(cond: any, msg: string) {
