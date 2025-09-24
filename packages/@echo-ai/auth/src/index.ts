@@ -1,2 +1,2 @@
-export * from './password.js';
-export * from './token.js';
+export * from './password';
+export * from './token';
