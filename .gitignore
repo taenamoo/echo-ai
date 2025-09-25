@@ -8,6 +8,7 @@ gha-creds-*.json
 
 # dependencies
 /node_modules
+**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -18,6 +19,9 @@ gha-creds-*.json
 /.pnpm-store/*
 /apps/web/node_modules
 /apps/api/node_modules
+# monorepo workspaces
+/packages/*/node_modules
+/services/*/node_modules
 
 # ca-certs
 *.crt
