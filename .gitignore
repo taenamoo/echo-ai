@@ -16,6 +16,8 @@ gha-creds-*.json
 !.yarn/releases
 !.yarn/versions
 /.pnpm-store/*
+/apps/web/node_modules
+/apps/api/node_modules
 
 # ca-certs
 *.crt

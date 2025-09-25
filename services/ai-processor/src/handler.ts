@@ -20,6 +20,9 @@ const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 25000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
+const SUMMARIZE_USE_MOCK = /^true$/i.test(
+  process.env.SUMMARIZE_USE_MOCK || (config.stage === 'local' && (!config.geminiApiKey || config.geminiApiKey === 'YOUR_GEMINI_API_KEY') ? 'true' : '')
+);
 
 export async function handler(event: SQSEvent): Promise<PartialBatchResponse> {
   const failures: { itemIdentifier: string }[] = [];
@@ -142,6 +145,11 @@ async function getObjectText(bucket: string, key: string): Promise<{ text: strin
 }
 
 async function summarizeText(text: string): Promise<string> {
+  if (SUMMARIZE_USE_MOCK) {
+    const cleaned = text.replace(/\s+/g, ' ').slice(0, 800);
+    return `요약(모의): ${cleaned}${cleaned.length === 800 ? '…' : ''}`;
+  }
+
   const genAI = new GoogleGenerativeAI(config.geminiApiKey);
   const model = genAI.getGenerativeModel({ model: SUMMARIZE_MODEL });
 
