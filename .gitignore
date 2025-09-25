@@ -27,6 +27,7 @@ gha-creds-*.json
 
 # next.js
 /.next/
+/apps/web/.next/
 /out/
 
 # production
