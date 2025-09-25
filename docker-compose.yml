@@ -44,6 +44,10 @@ services:
       - NODE_ENV=development
       - WATCHPACK_POLLING=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
+      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-test-bucket}
+      - JWT_SECRET=${JWT_SECRET:-TEST}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-YOUR_GEMINI_API_KEY}
       - SQS_ENDPOINT=http://localstack:4566
       - S3_ENDPOINT=http://localstack:4566
       - DYNAMODB_ENDPOINT=http://dynamodb-local:8998
