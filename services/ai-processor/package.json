@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"TODO: implement AI processor bundling\""
+    "build": "echo \"TODO: implement AI processor bundling\"",
+    "local": "tsx src/local-runner.ts"
   },
   "dependencies": {
     "@echo-ai/aws-clients": "workspace:*",

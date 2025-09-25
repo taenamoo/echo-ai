@@ -105,13 +105,13 @@ async function summarizeText(text: string): Promise<string> {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { documentId: string } }
+  context: { params: Promise<{ documentId: string }> }
 ) {
   try {
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
-    const documentId = params.documentId;
+    const { documentId } = await context.params;
 
     const doc = await loadDocument(userId, documentId);
     if (!doc) return NextResponse.json({ message: '문서를 찾을 수 없거나 권한이 없습니다.' }, { status: 404 });

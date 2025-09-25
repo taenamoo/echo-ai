@@ -31,14 +31,14 @@ async function deleteS3Prefix(bucket: string, prefix: string) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { documentId: string } }
+  context: { params: Promise<{ documentId: string }> }
 ) {
   try {
     // userId is derived from the Authorization token, not from params
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
-    const documentId = params.documentId;
+    const { documentId } = await context.params;
 
     const getRes = await dynamoDbDocumentClient.send(
       new GetCommand({
@@ -61,14 +61,14 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { documentId: string } }
+  context: { params: Promise<{ documentId: string }> }
 ) {
   try {
     // userId is derived from the Authorization token, not from params
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
-    const documentId = params.documentId;
+    const { documentId } = await context.params;
 
     // Load to get s3Key, also verify ownership
     const getRes = await dynamoDbDocumentClient.send(

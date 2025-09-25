@@ -1,4 +1,4 @@
-import { SendMessageCommand } from '@aws-sdk/client-sqs';
+import { SendMessageCommand, GetQueueUrlCommand, CreateQueueCommand } from '@aws-sdk/client-sqs';
 import { sqsClient } from '@echo-ai/aws-clients';
 import { getConfig } from '@echo-ai/config';
 
@@ -24,10 +24,58 @@ export async function enqueueSummarizeJob(userId: string, documentId: string): P
     requestedAt: new Date().toISOString(),
   };
 
-  await sqsClient.send(
-    new SendMessageCommand({
-      QueueUrl: queueUrl,
-      MessageBody: JSON.stringify(message),
-    })
-  );
+  try {
+    await sqsClient.send(
+      new SendMessageCommand({
+        QueueUrl: queueUrl,
+        MessageBody: JSON.stringify(message),
+      })
+    );
+  } catch (err: any) {
+    // Local dev ergonomics: if queue is missing in LocalStack, attempt to create once
+    const code = err?.Code || err?.code || err?.name;
+    const isNonExistent =
+      code === 'AWS.SimpleQueueService.NonExistentQueue' ||
+      code === 'QueueDoesNotExist' ||
+      (typeof err?.message === 'string' && err.message.includes('NonExistentQueue'));
+    if (config.stage === 'local' && isNonExistent) {
+      const ensuredUrl = await ensureLocalQueue(queueUrl).catch(() => null);
+      if (ensuredUrl) {
+        await sqsClient.send(
+          new SendMessageCommand({
+            QueueUrl: ensuredUrl,
+            MessageBody: JSON.stringify(message),
+          })
+        );
+        return;
+      }
+    }
+    throw err;
+  }
+}
+
+function queueNameFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureLocalQueue(initialUrl: string): Promise<string | null> {
+  const name = queueNameFromUrl(initialUrl) || process.env.SUMMARIZE_SQS_QUEUE_NAME || 'echoai-summarize-queue';
+  try {
+    const getRes = await sqsClient.send(new GetQueueUrlCommand({ QueueName: name }));
+    if (getRes.QueueUrl) return getRes.QueueUrl;
+  } catch {
+    // not found → create
+  }
+  try {
+    const createRes = await sqsClient.send(new CreateQueueCommand({ QueueName: name }));
+    return createRes.QueueUrl || initialUrl;
+  } catch {
+    return null;
+  }
 }
