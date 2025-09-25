@@ -12,43 +12,74 @@
 5. GitHub Actions CI/CD 파이프라인을 구축하여 브랜치별 자동 배포를 구성한다.
 
 ## 3. 추진 전략 및 단계
-### 단계 1. 설계 정교화 및 준비 (1~2주)
-- `application-architecture-notes.md`의 제약 사항 및 리스크를 기반으로 세부 요구사항을 확정한다.
-  - SLA 요구사항(요약 20초), 허용 파일 형식(.txt/.md/.pdf/.docs), 비밀 관리 전환 등 미스매치 항목을 정리하여 이해관계자 승인한다.
-  - DynamoDB 정렬키 패턴을 `PROFILE#<userId>`로 확정하고, 기존 문서(`PROFILE`)와의 차이를 보정하기 위한 마이그레이션 및 스키마 업데이트 계획을 작성한다.
-  - 요약 엔진 전략(초기 Gemini 고정, 후속 엔진 추가 대비)을 합의하고 Secrets Manager 키 네이밍/버저닝·교차 엔진 구성 정책을 정의한다.
-  - 비동기 요약 활성화(`SUMMARIZE_ASYNC=true`) 시 예상되는 SQS 큐 크기, Lambda 동시 실행 한계, 재시도·DLQ 정책을 산정하여 요구되는 모니터링 항목을 목록화한다.
-  - IaC 접근 방식(CloudFormation 템플릿 vs CDK)과 공통 태깅, IAM 최소 권한 표준을 문서화해 후속 단계의 구현 가이드로 배포한다.
-    - 결과물: [`docs/architecture/iac-guidelines.md`](./iac-guidelines.md) 및 요약본 [`docs/done/step-01-iac-guideline-summary.md`](../done/step-01-iac-guideline-summary.md).
-- 의사결정 결과를 `docs/architecture/todo-system.md` 및 부속 설계 문서에 반영하기 위한 업데이트 백로그와 승인 절차를 수립한다.
+본 섹션은 우선순위를 반영하여 2단계부터 재정의했다. 1단계는 완료됨(문서화 및 의사결정 반영 진행).
 
-### 단계 2. 공통 모듈 정비 (1주)
-- `packages/@echo-ai/*` 모듈을 Lambda 번들링에 적합하도록 의존성 및 환경 변수 로딩 로직 점검.
-- `SUMMARIZE_ASYNC` 기본값을 true로 전환하기 위한 설정 및 테스트 계획 수립.
-- 로컬 개발 환경(Docker Compose)에서 Lambda 시뮬레이션 전략 정의.
+### 단계 1. 설계 정교화 및 준비 (완료)
+- 결과물: [`docs/architecture/step-01-prep-decisions.md`](./step-01-prep-decisions.md), [`docs/architecture/iac-guidelines.md`](./iac-guidelines.md)
 
-### 단계 3. 백엔드 기능 분리 (2~3주)
-- `services/api`에 인증, 문서 CRUD, 요약 트리거 Lambda 핸들러 구현.
-- API Gateway 라우팅 규칙과 요청/응답 스키마 정의.
-- `services/ai-processor` Lambda가 SQS 메시지를 처리하여 DynamoDB/S3와 상호작용하도록 구현.
-- 30초 SLA 충족을 위한 병렬 처리·타임아웃 설정 적용.
+### 단계 2. 비동기 요약 경로 로컬 E2E 활성화 (우선순위 1, 1~1.5주)
+- 목표: SUMMARIZE_ASYNC를 기본 활성화하고, 로컬 환경에서 업로드 → 큐 → 워커 → 요약 저장까지 E2E 동작.
+- 작업
+  - `services/ai-processor` SQS 컨슈머 구현: S3에서 문서 로드 → 텍스트 추출 → Gemini 요약 → DynamoDB 상태/결과 업데이트.
+  - `docker-compose.yml` LocalStack에 SQS 서비스 추가 및 큐 초기화 스크립트 작성. `SUMMARIZE_SQS_QUEUE_URL` 주입.
+  - `packages/@echo-ai/config`에 SQS URL/엔드포인트/타임아웃 등 설정 키 보완. 로컬 기본값 정의.
+  - `apps/web` 요약 트리거 라우트는 기본적으로 202(queued) 반환하도록 플래그 기본값 전환(`SUMMARIZE_ASYNC=true`).
+  - 파일 형식·크기 정책을 1단계 결정과 일치하도록 presign·서버 검증 동기화(.txt/.md/.pdf/.docs, 25MB).
+- 산출물/수용 기준
+  - 업로드 후 약 20초 내 대부분의 샘플 문서가 요약 완료 상태로 전환(p95 목표는 이후 단계에서 보완).
+  - 로컬에서 큐 길이, 워커 로그로 처리 확인 가능.
+  - 문서: 로컬 실행 가이드 업데이트 및 트러블슈팅 항목.
 
-### 단계 4. 인프라 코드 작성 (2주)
-- `infra/` 디렉터리에 `echoai-shared`, `echoai-api`, (선택) `echoai-ops` 스택 템플릿 작성.
-- IAM 역할 최소 권한, 태깅 정책, CloudWatch 로그/알람 구성을 포함.
-- 로컬/스테이징/프로덕션 환경 파라미터 정의 및 문서화.
+### 단계 3. API 기능 Lambda 추출 및 동등성 확보 (우선순위 2, 2~3주)
+- 목표: Next.js API Route와 동등한 기능을 `services/api`의 Lambda 핸들러로 구현하여 마이그레이션 준비.
+- 작업
+  - 인증, 문서 CRUD, 요약 트리거 핸들러 구현. 요청/응답 스키마 명세화.
+  - 공통 로직은 `packages/@echo-ai/*`로 이동/정리하여 번들 재사용 최적화.
+  - DynamoDB GSI(`EmailIndex`) 및 파티션키/정렬키 패턴(`PK=USER#id`, `SK=PROFILE#id`, `SK=DOC#id`)을 코드와 문서에 일치.
+  - 로컬 Invoke(aws-lambda-runtime/ts-node) 스크립트로 기능 검증.
+- 산출물/수용 기준
+  - 기존 Next.js 라우트와 API 동작·스키마·권한이 동일. 샘플 시나리오 통합 테스트 통과.
+  - 변경 영향 최소화(클라이언트 호출 계약 유지).
 
-### 단계 5. CI/CD 파이프라인 구축 (1~2주)
-- GitHub Actions 워크플로 추가: Lint/Test → Build → 배포 패키징.
-- OIDC 기반 IAM Role 연동 및 비밀 접근 권한 설정.
-- 변경 감지 로직 구현: UI 전용 변경 시 S3 업로드 + CloudFront 무효화, 백엔드 변경 시 CloudFormation 배포.
-- Secrets Manager 업데이트 자동화 및 실패 알림 채널 구성.
+### 단계 4. CDK 기반 최소 인프라(dev) 배포 (우선순위 3, 1.5~2주)
+- 목표: 개발 환경에서 서버리스 리소스 프로비저닝 및 Summarizer/기본 API 배포 자동화.
+- 작업
+  - 스택 구성: `echoai-shared`(문서 S3, 태깅), `echoai-api`(DynamoDB with EmailIndex, SQS+DLQ, Summarizer Lambda, API GW 스켈레톤, IAM, Log/메트릭), 선택 `echoai-ops`(알람/대시보드).
+  - 공통 태그/IAM 최소 권한 적용, 스택 Outputs로 버킷/배포ID/큐URL/테이블ARN/API URL 노출.
+  - 배포 스크립트와 파라미터(context dev.json) 정리.
+- 산출물/수용 기준
+  - `cdk synth/diff/deploy`로 무중단 배포 가능, 리소스가 정상 생성되고 기본 헬스체크 통과.
+  - Summarizer Lambda가 SQS 이벤트로 동작(CloudWatch에서 확인).
 
-### 단계 6. 전환 및 검증 (2주)
-- 스테이징 환경에서 종단 간 통합 테스트(인증, 업로드, 요약, 조회) 수행.
-- 성능 검증: 요약 처리 시간, Lambda 동시 실행 한계, SQS 적체 모니터링.
-- 보안 검토: IAM 정책, Secrets Manager 접근 제어, 네트워크 구성.
-- 운영 환경 전환 계획 수립(릴리즈 창구, 롤백 전략, 장애 대응 절차).
+### 단계 5. Secrets Manager 통합 (우선순위 4, 0.5~1주)
+- 목표: `.env` 의존 제거, 런타임 비밀을 Secrets Manager에서 주입/조회.
+- 작업
+  - Secret 네이밍(`echoai/{stage}/gemini/api-key` 등) 생성 및 CDK로 관리.
+  - `@echo-ai/config`에 Secret 조회 로직 추가(로컬은 env, cloud는 Secrets Manager).
+  - Lambda 환경변수에는 Secret 이름만 주입, 권한 범위 최소화.
+- 산출물/수용 기준
+  - 프로덕션/스테이징 Lambda가 Secrets Manager에서 키를 읽어 성공적으로 요약 수행.
+  - `.env` 내 민감정보 제거 및 문서화 업데이트.
+
+### 단계 6. CI/CD 초기 파이프라인 (우선순위 5, 1~1.5주)
+- 목표: 브랜치 병합 시 자동 빌드/배포 및 UI-only 분기 구현.
+- 작업
+  - GitHub OIDC → `EchoPipelineRole` 연결, `cdk synth/diff/deploy` 워크플로 추가.
+  - 변경 감지: UI 전용 변경 시 S3 업로드+CloudFront 무효화, 백엔드 변경 시 스택 배포.
+  - Lint/Test/빌드 캐시 최적화.
+- 산출물/수용 기준
+  - `develop` 병합 → dev 계정 배포 성공, UI-only 변경 시 빠른 정적 배포 경로 동작.
+  - 실패 시 알림 및 롤백 지침 포함.
+
+### 단계 7. 검증·성능·보안 하드닝 및 운영 전환 (우선순위 6, 1.5~2주)
+- 목표: SLA(p95 20초), 보안/IAM 검토, 관측성, 운영 절차를 완비하여 프로덕션 전환 준비.
+- 작업
+  - 통합 테스트: 인증→업로드→요약→조회 E2E, 에러/경계 케이스.
+  - 성능: 동시 처리/타임아웃/배치 크기 조정, 큐 적체 알람/대시보드 구성.
+  - 보안: IAM 최소 권한 재검토, 로그/비밀 접근 감사, 태깅 준수 검증.
+  - 운영 전환 계획: 릴리즈/롤백/장애 대응 절차 정리.
+- 산출물/수용 기준
+  - CloudWatch 대시보드·알람 가동, p95 20초 충족(스테이징). 운영 전환 체크리스트 승인.
 
 ## 4. 산출물
 - 업데이트된 시스템 문서: `docs/architecture/todo-system.md` 반영 + 전환 결정 사항.

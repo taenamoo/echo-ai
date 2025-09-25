@@ -19,6 +19,9 @@ services:
       - WATCHPACK_POLLING=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
       - S3_ENDPOINT=http://localstack:4566
+      - SQS_ENDPOINT=http://localstack:4566
+      - SUMMARIZE_ASYNC=true
+      - SUMMARIZE_SQS_QUEUE_URL=http://localstack:4566/000000000000/echoai-summarize-queue
       #- DYNAMODB_ENDPOINT=http://dynamodb-local:8998
     dns:
       - 8.8.8.8
@@ -60,11 +63,12 @@ services:
       - "4566:4566"
       - "4571:4571"
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,sqs
       - AWS_REGION=${AWS_REGION:-ap-northeast-2}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME:-test-bucket}
     volumes:
       - "./setting/bash/localstack-init-s3.sh:/etc/localstack/init/ready.d/10-init-s3.sh:ro"
+      - "./setting/bash/localstack-init-sqs.sh:/etc/localstack/init/ready.d/20-init-sqs.sh:ro"
     networks:
       - echo-ai-net
 
