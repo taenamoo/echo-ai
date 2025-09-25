@@ -14,7 +14,10 @@ const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 45000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
-const SUMMARIZE_ASYNC = /^true$/i.test(process.env.SUMMARIZE_ASYNC || '');
+// 로컬(stage=local)에서는 기본적으로 비동기 요약을 활성화
+const SUMMARIZE_ASYNC = /^true$/i.test(
+  process.env.SUMMARIZE_ASYNC ?? (config.stage === 'local' ? 'true' : '')
+);
 
 const PK_PREFIX_USER = 'USER#';
 const SK_PREFIX_DOC = 'DOC#';

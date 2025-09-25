@@ -14,13 +14,15 @@ const IS_LOCAL = config.stage === 'local';
 const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 25);
 const MAX_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
 
+// 정책: .txt, .md, .pdf, .docs 만 허용
+const ALLOWED_EXTENSIONS = ['.txt', '.md', '.pdf', '.docs'] as const;
 const ALLOWED_TYPES = [
   'text/plain',
   'text/markdown',
   'application/pdf',
-  'image/png',
-  'image/jpeg',
-  'image/gif',
+  // MS Word 유형(.doc/.docx) — ".docs" 정책과의 호환을 위해 허용
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ];
 
 function buildPresignClient() {
@@ -49,6 +51,11 @@ function isValidFilename(name: string): boolean {
   return !/[/\\:*?"<>|]/.test(name);
 }
 
+function hasAllowedExtension(name: string): boolean {
+  const lower = name.toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 export async function POST(req: NextRequest) {
   try {
     const auth = requireAuth(req);
@@ -65,6 +72,9 @@ export async function POST(req: NextRequest) {
     }
     if (!isValidFilename(filename)) {
       return NextResponse.json({ message: '허용되지 않는 파일 이름입니다.' }, { status: 400 });
+    }
+    if (!hasAllowedExtension(filename)) {
+      return NextResponse.json({ message: '허용되지 않는 파일 확장자입니다. (.txt/.md/.pdf/.docs)' }, { status: 400 });
     }
     if (!ALLOWED_TYPES.includes(contentType)) {
       return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });

@@ -47,6 +47,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ message: 'documentId를 추출할 수 없습니다.' }, { status: 400 });
       }
 
+      // 정책 검증: 확장자/타입/크기
+      if (!isAllowedExtension(filename)) {
+        return NextResponse.json({ message: '허용되지 않는 파일 확장자입니다. (.txt/.md/.pdf/.docs)' }, { status: 400 });
+      }
+      if (filetype && !isAllowedMime(filetype)) {
+        return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });
+      }
+      if (!isAllowedSize(filesize)) {
+        return NextResponse.json({ message: '파일 크기가 제한(25MB)을 초과했습니다.' }, { status: 400 });
+      }
+
       const item: DocumentItem = createDocumentItem(
         userId,
         documentId,
@@ -69,6 +80,16 @@ export async function POST(req: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
+    }
+    // 정책 검증: 확장자/타입/크기
+    if (!isAllowedExtension(file.name)) {
+      return NextResponse.json({ message: '허용되지 않는 파일 확장자입니다. (.txt/.md/.pdf/.docs)' }, { status: 400 });
+    }
+    if (file.type && !isAllowedMime(file.type)) {
+      return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });
+    }
+    if (!isAllowedSize(file.size)) {
+      return NextResponse.json({ message: '파일 크기가 제한(25MB)을 초과했습니다.' }, { status: 400 });
     }
     const documentId = uuidv4();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
@@ -134,6 +155,33 @@ function createDocumentItem(
 
 function timeOr(x: any, key: 'createdAt'|'updatedAt') {
   return new Date((x?.[key] || x?.createdAt || 0)).getTime();
+}
+
+// 업로드 정책 유틸리티
+const MAX_UPLOAD_SIZE_MB = Number(process.env.MAX_UPLOAD_SIZE_MB || 25);
+const MAX_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024;
+const ALLOWED_EXTENSIONS = ['.txt', '.md', '.pdf', '.docs'] as const;
+const ALLOWED_TYPES = [
+  'text/plain',
+  'text/markdown',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+] as const;
+
+function isAllowedExtension(name: string): boolean {
+  const lower = (name || '').toLowerCase();
+  return ALLOWED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
+function isAllowedMime(type?: string | null): boolean {
+  if (!type) return true; // mime 미전달 시 확장자 검증으로 커버
+  return (ALLOWED_TYPES as readonly string[]).includes(type);
+}
+
+function isAllowedSize(size?: number | null): boolean {
+  const n = Number(size || 0);
+  return n >= 0 && n <= MAX_BYTES;
 }
 
 // GET /api/documents?limit=20&cursor=<base64>
