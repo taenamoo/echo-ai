@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 0. ensure dependencies are installed (when node_modules is an anonymous volume)
-if [ ! -d "/app/node_modules" ] || [ -z "$(ls -A /app/node_modules 2>/dev/null)" ]; then
+if [ ! -d "/app/node_modules" ] || [ -z "$(ls -A /app/node_modules 2>/dev/null)" ] || [ ! -e "/app/node_modules/@echo-ai/config" ]; then
   echo "node_modules missing or empty. Running pnpm install..."
   pnpm config set store-dir .pnpm-store
   pnpm install
