@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth } from '@/lib/api/auth';
-import { summarizeDocumentHandler } from '@echo-ai/api-core';
+import { summarizeDocumentHandler, summarizeDocumentSyncHandler } from '@echo-ai/api-core';
 import { getConfig } from '@echo-ai/config';
 
 const config = getConfig();
@@ -26,11 +26,16 @@ export async function POST(
       });
       return NextResponse.json(res.body ?? {}, { status: res.status, headers: res.headers });
     }
-
-    return NextResponse.json({ message: '동기 요약은 비활성화되어 있습니다.' }, { status: 501 });
+    // 동기 요약 경로(로컬/특정 환경용)
+    const res = await summarizeDocumentSyncHandler({
+      method: 'POST',
+      path: `/api/documents/${documentId}/summarize`,
+      headers: Object.fromEntries(req.headers.entries()),
+      params: { id: documentId },
+    });
+    return NextResponse.json(res.body ?? {}, { status: res.status, headers: res.headers });
   } catch (error: any) {
     console.error('Summarize Error:', error);
     return NextResponse.json({ message: '문서 요약 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
-

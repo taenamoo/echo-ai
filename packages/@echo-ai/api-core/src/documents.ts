@@ -1,11 +1,13 @@
 import type { NormalizedRequest, NormalizedResponse } from './types';
 import { dynamoDbDocumentClient, MAIN_TABLE_NAME, s3Client } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { ListObjectsV2Command, DeleteObjectsCommand } from '@aws-sdk/client-s3';
+import { ListObjectsV2Command, DeleteObjectsCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { verifyTokenDetailed } from '@echo-ai/auth';
 import type { DocumentItem } from '@echo-ai/core-domain';
 import { enqueueSummarizeJob } from '@echo-ai/documents';
 import { getConfig } from '@echo-ai/config';
+import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 
 function json(status: number, body: unknown): NormalizedResponse { return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body }; }
 function ok(body: unknown) { return json(200, body); }
@@ -65,12 +67,12 @@ export async function listDocumentsHandler(req: NormalizedRequest): Promise<Norm
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
     const qp = req.query || {};
-    const q = qp.q || '';
-    const limitParam = Number(qp.limit || 20);
+    const q = (qp as any).q || '';
+    const limitParam = Number((qp as any).limit || 20);
     const limit = Math.max(1, Math.min(100, isNaN(limitParam) ? 20 : limitParam));
-    const sortKeyParam = (qp.sortKey || 'createdAt') as any;
-    const sortDirParam = (qp.sortDir || 'desc') as any;
-    const cursor = qp.cursor;
+    const sortKeyParam = ((qp as any).sortKey || 'createdAt') as any;
+    const sortDirParam = ((qp as any).sortDir || 'desc') as any;
+    const cursor = (qp as any).cursor;
 
     const pk = `USER#${userId}`;
     let ExclusiveStartKey: any = undefined;
@@ -210,6 +212,93 @@ export async function summarizeDocumentHandler(req: NormalizedRequest & { params
   }
 }
 
+export async function summarizeDocumentSyncHandler(req: NormalizedRequest & { params?: Record<string, string> }): Promise<NormalizedResponse> {
+  try {
+    const auth = getAuth(req.headers);
+    if (!auth.ok) return auth.res;
+    const userId = auth.userId;
+    const documentId = req.params?.id;
+    if (!documentId) return badRequest('documentId가 필요합니다.');
+
+    const getRes = await dynamoDbDocumentClient.send(new GetCommand({ TableName: MAIN_TABLE_NAME, Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` } }));
+    const doc = getRes.Item as any;
+    if (!doc || doc.userId !== userId) return notFound('문서를 찾을 수 없거나 권한이 없습니다.');
+    if ((doc.status || '').toUpperCase() === 'PROCESSING') return json(409, { message: '해당 문서는 요약 처리 중입니다.' });
+
+    // update to PROCESSING
+    await dynamoDbDocumentClient.send(new UpdateCommand({
+      TableName: MAIN_TABLE_NAME,
+      Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
+      UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt',
+      ExpressionAttributeNames: { '#status': 'status', '#updatedAt': 'updatedAt' },
+      ExpressionAttributeValues: { ':status': 'PROCESSING', ':updatedAt': new Date().toISOString() },
+    }));
+
+    const cfg = getConfig();
+    const obj = await s3Client.send(new GetObjectCommand({ Bucket: cfg.s3BucketName, Key: doc.s3Key }));
+    const contentType = (obj as any).ContentType as string | undefined;
+    const buf = await streamToBuffer((obj as any).Body);
+    const text = await extractTextFromBuffer(buf, contentType);
+    const type = contentType || doc.filetype || '';
+    if (!text || text.trim().length === 0) {
+      await setStatus(userId, documentId, 'FAILED');
+      return badRequest(`요약할 텍스트를 추출하지 못했습니다. 형식: ${type || 'unknown'}`);
+    }
+
+    const summary = await generateSummary(text);
+    await dynamoDbDocumentClient.send(new UpdateCommand({
+      TableName: MAIN_TABLE_NAME,
+      Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
+      UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt, #summaryText = :summaryText',
+      ExpressionAttributeNames: { '#status': 'status', '#updatedAt': 'updatedAt', '#summaryText': 'summaryText' },
+      ExpressionAttributeValues: { ':status': 'COMPLETE', ':updatedAt': new Date().toISOString(), ':summaryText': summary },
+    }));
+    return ok({ documentId, status: 'COMPLETE', summaryText: summary });
+  } catch (e) {
+    console.error('summarizeDocumentSyncHandler error', e);
+    return serverError();
+  }
+}
+
+async function setStatus(userId: string, documentId: string, status: string) {
+  await dynamoDbDocumentClient.send(new UpdateCommand({
+    TableName: MAIN_TABLE_NAME,
+    Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` },
+    UpdateExpression: 'SET #status = :status, #updatedAt = :updatedAt',
+    ExpressionAttributeNames: { '#status': 'status', '#updatedAt': 'updatedAt' },
+    ExpressionAttributeValues: { ':status': status, ':updatedAt': new Date().toISOString() },
+  }));
+}
+
+async function generateSummary(raw: string): Promise<string> {
+  const cfg = getConfig();
+  const modelName = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
+  const timeoutMs = Number(process.env.SUMMARIZE_TIMEOUT_MS || 30000);
+  const maxChars = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
+  const maxOutputTokens = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
+  const SUMMARIZE_USE_MOCK = /^true$/i.test(process.env.SUMMARIZE_USE_MOCK || '');
+
+  const text = raw.length > maxChars ? raw.slice(0, maxChars) : raw;
+  if (SUMMARIZE_USE_MOCK || !cfg.geminiApiKey || cfg.geminiApiKey === 'YOUR_GEMINI_API_KEY') {
+    const cleaned = text.replace(/\s+/g, ' ').slice(0, 800);
+    return `요약(모의): ${cleaned}${cleaned.length === 800 ? '…' : ''}`;
+  }
+
+  const genAI = new GoogleGenerativeAI(cfg.geminiApiKey);
+  const model = genAI.getGenerativeModel({ model: modelName });
+  const prompt = (process.env.SUMMARIZE_PROMPT_TEMPLATE || `아래 문서 내용을 한국어로 간결하게 요약해 주세요.\n---\n${text}\n---\n요약:`);
+  const generationConfig: GenerationConfig = { maxOutputTokens };
+
+  const task = (async () => {
+    const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig });
+    const resp = await result.response;
+    return resp.text();
+  })();
+
+  const timeout = new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Summarization timed out')), timeoutMs));
+  return (await Promise.race([task, timeout])) as string;
+}
+
 async function deleteS3Prefix(bucket: string, prefix: string) {
   let ContinuationToken: string | undefined = undefined;
   do {
@@ -244,4 +333,3 @@ function cmpSort(a: any, b: any, sortKey: string, dir: 1 | -1) {
   if (va > vb) return 1 * dir;
   return 0;
 }
-

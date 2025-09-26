@@ -2,13 +2,21 @@ import type { NormalizedRequest, NormalizedResponse } from './types';
 import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { comparePassword, generateAccessToken } from '@echo-ai/auth';
+import { z } from 'zod';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { verifyTokenDetailed } from '@echo-ai/auth';
 
+const LoginSchema = z.object({
+  email: z.string().min(1),
+  password: z.string().min(1),
+});
+
 export async function loginHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
-    const body = req.body ? safeJson<{ email?: string; password?: string }>(req.body) : null;
-    if (!body?.email || !body?.password) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    const parsed = req.body ? safeJson<unknown>(req.body) : null;
+    const result = LoginSchema.safeParse(parsed);
+    if (!result.success) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    const body = result.data;
 
     const query = new QueryCommand({
       TableName: MAIN_TABLE_NAME,
@@ -31,10 +39,18 @@ export async function loginHandler(req: NormalizedRequest): Promise<NormalizedRe
   }
 }
 
+const SignupSchema = z.object({
+  email: z.string().min(1),
+  password: z.string().min(1),
+  name: z.string().optional(),
+});
+
 export async function signupHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
-    const body = req.body ? safeJson<{ email?: string; password?: string; name?: string }>(req.body) : null;
-    if (!body?.email || !body?.password) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    const parsed = req.body ? safeJson<unknown>(req.body) : null;
+    const checkInput = SignupSchema.safeParse(parsed);
+    if (!checkInput.success) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    const body = checkInput.data;
 
     const { validatePasswordPolicy, hashPassword } = await import('@echo-ai/auth');
     const check = validatePasswordPolicy(body.password);

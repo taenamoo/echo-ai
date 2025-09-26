@@ -9,6 +9,7 @@
     "lint": "pnpm --filter @echo-ai/web lint",
     "db:migrate": "pnpm dlx tsx scripts/migration/create-dynamodb-table.ts",
     "test:auth": "pnpm exec tsx scripts/tests/auth.test.ts",
+    "test:contracts": "pnpm exec tsx scripts/tests/contracts.documents.list.test.ts && pnpm exec tsx scripts/tests/contracts.presign.test.ts",
     "pdfjs:pua": "pnpm dlx tsx scripts/local/build-pdfjs-pua.ts",
     "test:pdfjs:pua": "pnpm dlx tsx scripts/tests/pdfjs-pua-benchmark.ts"
   },
