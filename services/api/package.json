@@ -9,6 +9,7 @@
     "local": "tsx src/local-invoke.ts"
   },
   "dependencies": {
+    "@echo-ai/api-core": "workspace:*",
     "@echo-ai/auth": "workspace:*",
     "@echo-ai/aws-clients": "workspace:*",
     "@echo-ai/config": "workspace:*",

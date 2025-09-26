@@ -31,15 +31,34 @@
   - 문서: 로컬 실행 가이드 업데이트 및 트러블슈팅 항목.
 
 ### 단계 3. API 기능 Lambda 추출 및 동등성 확보 (우선순위 2, 2~3주)
-- 목표: Next.js API Route와 동등한 기능을 `services/api`의 Lambda 핸들러로 구현하여 마이그레이션 준비.
+- 목표: Next.js API Route와 동등 기능을 `services/api` Lambda로 제공하고, 단일 소스 구현(Shared Handler)로 정합성을 보장.
 - 작업
-  - 인증, 문서 CRUD, 요약 트리거 핸들러 구현. 요청/응답 스키마 명세화.
-  - 공통 로직은 `packages/@echo-ai/*`로 이동/정리하여 번들 재사용 최적화.
-  - DynamoDB GSI(`EmailIndex`) 및 파티션키/정렬키 패턴(`PK=USER#id`, `SK=PROFILE#id`, `SK=DOC#id`)을 코드와 문서에 일치.
-  - 로컬 Invoke(aws-lambda-runtime/ts-node) 스크립트로 기능 검증.
+  - Lambda 핸들러 구현(진행): auth(signup/login/me), documents(create/list/get/delete/summarize), presign(createPresign).
+  - 동작 정합성 보완
+    - summarize: 큐잉 전 PROCESSING 업데이트, 큐잉 실패 시 FAILED 반영. [완료]
+    - documents.list: 검색(q), 정렬(sortKey/dir) 옵션 구현. [TODO]
+    - presign: 확장자/MIME/사이즈 정책 일치화. [완료]
+    - legacy multipart 업로드 경로 지원 여부 결정. [DECIDE]
+  - Shared Handler 패턴 도입
+    - 공통 서비스 계층(`packages/@echo-ai/api-core` 또는 `services/api/src/shared`)에 순수 핸들러 정의.
+    - Next.js Route와 Lambda는 어댑터만 두고 동일 구현 호출.
+    - 요청/응답 Normalized 인터페이스 설계(Body/Headers/Auth/Params/Query).
+  - 스키마 명세/검증(zod/JSON Schema) 도입 및 응답 계약 통일.
+  - 로컬 Invoke 스크립트 확장(완료): signup/login/me 및 documents* 액션 지원.
 - 산출물/수용 기준
-  - 기존 Next.js 라우트와 API 동작·스키마·권한이 동일. 샘플 시나리오 통합 테스트 통과.
-  - 변경 영향 최소화(클라이언트 호출 계약 유지).
+  - Next.js ↔ Lambda 엔드포인트별 동작/응답 정합성 계약 테스트 통과.
+  - presign/업로드/목록/단건/삭제/요약 큐잉 시나리오 동등 동작.
+  - Shared Handler 구조 확립으로 신규 기능이 양측에 자동 반영.
+
+### 단계 3.1 CI/CD 자동화(추가)
+- 목표: Next.js 라우트/공통 핸들러 변경 시 Lambda 자동 빌드·배포.
+- 작업
+  - GitHub Actions 워크플로: 변경 감지(`apps/web/src/app/api/**`, `services/api/**`, `packages/@echo-ai/**`).
+  - 빌드: esbuild/tsup 번들 → 아티팩트 업로드 → CDK `echoai-api` 스택 `cdk deploy --require-approval=never`.
+  - 배포 권한: GitHub OIDC → `EchoPipelineRole`(cloudformation deploy, iam:PassRole 제한).
+  - 프리/포스트 검증: `cdk diff` 요약 코멘트, 헬스체크 Lambda 호출.
+- 산출물/수용 기준
+  - main/develop 병합 시 자동 배포, 실패 시 알림 및 롤백 가이드.
 
 ### 단계 4. CDK 기반 최소 인프라(dev) 배포 (우선순위 3, 1.5~2주)
 - 목표: 개발 환경에서 서버리스 리소스 프로비저닝 및 Summarizer/기본 API 배포 자동화.
