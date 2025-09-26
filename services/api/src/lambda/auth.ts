@@ -3,6 +3,7 @@ import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { generateAccessToken, hashPassword, validatePasswordPolicy, verifyTokenDetailed } from '@echo-ai/auth';
 import { ok, created, badRequest, unauthorized, serverError, parseJson, getAuthToken } from './http';
+import { randomUUID } from 'crypto';
 
 export const signup: APIGatewayProxyHandlerV2 = async (event) => {
   try {
@@ -21,7 +22,7 @@ export const signup: APIGatewayProxyHandlerV2 = async (event) => {
     const { Items } = await dynamoDbDocumentClient.send(query);
     if (Items && Items.length > 0) return json409('이미 가입된 이메일입니다.');
 
-    const userId = crypto.randomUUID();
+    const userId = randomUUID();
     const hashedPassword = await hashPassword(body.password);
     await dynamoDbDocumentClient.send(new PutCommand({
       TableName: MAIN_TABLE_NAME,
@@ -96,4 +97,3 @@ export const me: APIGatewayProxyHandlerV2 = async (event) => {
 function json409(message: string) {
   return { statusCode: 409, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message }) };
 }
-
