@@ -1,0 +1,100 @@
+name: Dev Deploy (UI and API)
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch: {}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      ui: ${{ steps.filter.outputs.ui }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            ui:
+              - 'apps/spa/**'
+            api:
+              - 'services/api/**'
+              - 'services/ai-processor/**'
+              - 'packages/**'
+              - 'infra/**'
+
+  ui:
+    name: UI (SPA) Deploy
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Build SPA
+        run: pnpm --filter @echo-ai/app-spa build
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL_DEV }}
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: Upload to S3
+        run: aws s3 sync apps/spa/dist s3://$UI_BUCKET --delete
+        env:
+          UI_BUCKET: ${{ vars.UI_BUCKET_DEV }}
+      - name: CloudFront Invalidate
+        if: vars.CF_DISTRIBUTION_ID_DEV != ''
+        run: aws cloudfront create-invalidation --distribution-id $CF --paths '/*'
+        env:
+          CF: ${{ vars.CF_DISTRIBUTION_ID_DEV }}
+
+  api:
+    name: API + Infra Deploy (CDK)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+      - name: Install infra deps
+        run: pnpm -C infra install --frozen-lockfile
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: CDK Synth
+        run: pnpm -C infra run synth
+        env:
+          APP_STAGE: develop
+      - name: CDK Deploy
+        run: pnpm -C infra run deploy
+        env:
+          APP_STAGE: develop
+
