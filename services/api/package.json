@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "echo \"TODO: implement API bundling\"",
-    "dev": "echo \"TODO: implement local API emulator\""
+    "dev": "echo \"TODO: implement local API emulator\"",
+    "local": "tsx src/local-invoke.ts"
   },
   "dependencies": {
     "@echo-ai/auth": "workspace:*",
