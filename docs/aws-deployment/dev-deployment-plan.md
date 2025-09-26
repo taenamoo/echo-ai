@@ -41,9 +41,10 @@
   - 버킷2(UI): SPA 정적 자산 호스팅。CloudFront 오리진 연결。
   - 문서 버킷 CORS: 브라우저 직접 업로드 허용(allowedOrigins=CF 도메인/로컬, methods=POST/PUT/GET, headers=*)
 - Secrets Manager
-  - 비밀: `echoai/develop/app` JSON
+  - 비밀: `echoai/develop/app` JSON 생성 및 Outputs로 ARN 노출
     - 키: `JWT_SECRET`, `GEMINI_API_KEY`, `SUMMARIZE_PROVIDER?`, `HASH_SALT?`。
-  - Lambda에서 런타임 조회 + 캐싱(단계 6에서 구현) 또는 초기엔 환경변수 주입 병행。
+  - 현재: Lambda에 시크릿 읽기 권한(grantRead) 부여 + env로 `SECRETS_NAME`/`SECRETS_ARN` 제공
+  - 다음: 단계 6에서 런타임 조회 + 캐싱 구현(@echo-ai/config 또는 aws-clients `getSecretJson` 활용)
 - IAM
   - Lambda 역할: 최소권한(S3 문서 버킷 RW, DynamoDB 테이블 CRUD, SQS Send/Consume, CloudWatch Logs)。
   - 배포 역할: GitHub OIDC 신뢰정책 + CDK deploy/CloudFront 무효화/S3 put 권한 제한。

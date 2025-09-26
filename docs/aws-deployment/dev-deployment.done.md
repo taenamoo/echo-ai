@@ -21,7 +21,7 @@
     - Lambda(Node 20): Auth/Presign/Documents/Study 핸들러 및 AI Processor(SQS 소비)
     - API Gateway(REST): 경로 매핑(인증/문서/스터디/요약)
     - 권한: Lambda에 DDB R/W, S3 R/W(필요시), SQS Send/Consume
-    - 환경: `APP_STAGE=develop`, `AWS_REGION`, `S3_BUCKET_NAME`, `SUMMARIZE_SQS_QUEUE_URL` 외 임시 값(`JWT_SECRET`, `GEMINI_API_KEY`, `SUMMARIZE_USE_MOCK=true`)
+    - 환경: `APP_STAGE=develop`, `AWS_REGION`, `S3_BUCKET_NAME`, `SUMMARIZE_SQS_QUEUE_URL` 외 임시 값(`JWT_SECRET`, `GEMINI_API_KEY`, `SUMMARIZE_USE_MOCK=true`) 및 `SECRETS_NAME`/`SECRETS_ARN`
     - CORS: 기본 허용 Origin은 `[https://<CF도메인>, http://localhost:5173]`; `ALLOWED_ORIGINS` 환경변수로 오버라이드 지원
 
 - GitHub Actions 워크플로(초안) 구성
@@ -108,3 +108,6 @@
 - 현재 Lambda 환경 변수에 임시 비밀(JWT/GEMINI)이 하드코딩되어 있어 dev 전용으로만 사용하고, 단계 6에서 Secrets Manager로 전환 필수.
 - CORS 기본값은 CF 도메인/로컬만 허용한다. 다중 도메인 필요 시 `ALLOWED_ORIGINS`로 지정.
 - 비용/보안 상 이유로 dev 외 스테이지에서 `RemovalPolicy.DESTROY` 사용 금지.
+- Secrets Manager(Dev) 구성
+  - `echoai/<stage>/app` 시크릿 생성 및 Lambda에 읽기 권한 부여
+  - 스택 출력: `SecretsArn`
