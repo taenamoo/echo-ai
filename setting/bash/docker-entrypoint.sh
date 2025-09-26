@@ -7,13 +7,7 @@ if [ ! -d "/app/node_modules" ] || [ -z "$(ls -A /app/node_modules 2>/dev/null)"
   pnpm install
 fi
 
-# 0.1. ensure .env.local exists (fallback to env.local_test baked in image)
-if [ ! -f "/app/.env.local" ] && [ -f "/app/env.local_test" ]; then
-  echo "No .env.local found. Seeding from env.local_test..."
-  cp /app/env.local_test /app/.env.local
-fi
-
-# 0.2. export variables from .env.local into current shell for all subsequent commands
+# 0.1. export variables from .env.local into current shell for all subsequent commands
 if [ -f "/app/.env.local" ]; then
   echo "Loading environment from /app/.env.local"
   set -a

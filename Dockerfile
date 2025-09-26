@@ -39,8 +39,7 @@ COPY services/ai-processor/package.json services/ai-processor/
 RUN pnpm config set store-dir .pnpm-store
 RUN pnpm install
 
-## 7. Set Environment Variables
-COPY env.local_test /app/.env.local
+## 7. Include migration script (env is provided at runtime via env_file)
 COPY scripts/migration/create-dynamodb-table.ts /app/scripts/migration/create-dynamodb-table.ts
 COPY setting/bash/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
