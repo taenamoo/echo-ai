@@ -7,6 +7,7 @@
   - Node `http` 기반의 경량 서버로 API Gateway v2 이벤트를 에뮬레이션하여 Lambda 어댑터(`services/api/src/lambda/*`)를 직접 호출
   - 매핑 엔드포인트: `/auth/signup`, `/auth/login`, `/me`, `/documents`(GET/POST), `/documents/presign`(POST), `/documents/{id}`(GET/DELETE), `/documents/{id}/summarize`(POST)
   - CORS: 기본 `http://localhost:5173` 허용(환경변수 `CORS_ALLOW_ORIGIN`로 변경 가능)
+  - CORS·프리플라이트 보완: `Access-Control-Allow-Methods`에 `PUT/PATCH` 추가, `PUT/PATCH` 본문 파싱 처리(프리플라이트 오류 및 본문 누락 해결)
 
 - 서비스 실행 스크립트 추가: `services/api/package.json`
   - `dev`/`serve`: `tsx src/local-http.ts`
@@ -41,6 +42,32 @@
     - `listDocumentsHandler`의 q/sortKey/sortDir/cursor 검증·정규화 및 커서 처리 보완
   - Documents SPA 화면을 Next와 동등 수준으로 재구성: 업로드(프리사인드·드래그앤드롭·진행률)/검색/정렬/페이지네이션/행동 버튼/모바일 상세 토글(`apps/spa/src/routes/Documents.tsx`)
 
+- SPA 에러 UX 정리(공통 에러 포맷 연계)
+  - 공통 에러 객체 `ApiError` 도입 및 활용: `apps/spa/src/api.ts`
+    - 서버 에러 응답 `{ message, code, details }`를 그대로 보존하여 UI에서 코드/메시지 출력 가능
+  - 문서 목록 화면의 오류 표시 개선: `apps/spa/src/routes/Documents.tsx`에서 `ApiError` 코드/메시지 반영
+
+- Study 노트 UI 개선(1차)
+  - 제목/내용/예시/순서(study_order) 편집 폼 추가(인라인): `apps/spa/src/study/StudyNotes.tsx`
+  - 클라이언트 검색(제목 필터) 및 정렬(study_order) 적용: 사이드바 검색 입력 + 정렬 유틸
+  - 편집 저장 시 `updateStudy` API 연계, 선택 항목 갱신
+
+- 계약 테스트 보완(문서 목록 파라미터 검증)
+  - 잘못된 sortKey/cursor에 대한 400 검증 추가: `scripts/tests/contracts.documents.list.test.ts`
+  - 기존 invalid limit 시나리오와 함께 Lambda 어댑터/공유 핸들러 동시 확인
+
+- Next.js 앱 로컬/Compose 비활성화 확인(과업 완료)
+  - 로컬 개발은 `api-local`(8787) + SPA(5173)만 기동: `docker-compose.yml`
+  - Next.js API 라우트는 과도기 비활성화 플래그 적용 및 단계적 제거 계획에 따라 유지(빌드 경로에서 미사용)
+
+- Zod 에러 규약 통일(공통 에러 포맷)
+  - 공통 HTTP 유틸 추가: `packages/@echo-ai/api-core/src/http.ts`
+    - 에러 응답 본문 형식: `{ message, code, details }`
+    - 헬퍼: `ok/created/accepted`, `badRequest/unauthorized/forbidden/notFound/conflict/serverError`, `badRequestFromZod/zodIssues`
+  - 핸들러 적용: `auth.ts`, `documents.ts`, `presign.ts`가 공통 포맷으로 응답하도록 리팩터
+    - Zod 실패 시 `code: 'VALIDATION_ERROR'`, `details.issues[]`에 경로/코드/메시지 제공
+    - 충돌/권한 오류 등은 표준 `code`로 매핑(`CONFLICT`, `UNAUTHORIZED`, …)
+
 - Study 기능 서버/클라이언트 구현
   - Lambda: `services/api/src/lambda/study.ts` (list/create/update/delete/quiz/search)
   - 로컬 라우팅: `services/api/src/local-http.ts`에 `/study/*` 경로 연결
@@ -51,6 +78,9 @@
     - `apps/spa/src/study/CodePlayground.tsx` (CodeSandbox 임베드, 높이 70vh)
     - `apps/spa/src/study/AiQuiz.tsx` (생성/풀이/정답/해설/점수)
     - `apps/spa/src/study/AiSearchButton.tsx` (드래그/더블클릭 모달, `/study/search` 호출)
+  - SPA 연동 정리
+    - 공통 API 헬퍼 사용: `apps/spa/src/api.ts`의 `api()` 경유로 `VITE_API_BASE_URL` 대상 호출
+    - AI 검색 경로 일원화: `apps/spa/src/studyApi.ts`에 `searchStudy()` 추가, `AiSearchButton`이 Next 라우트(`/api/study/search`) 대신 게이트웨이(`/study/search`)를 사용하도록 수정
   - Study 페이지 리팩터: 탭(스터디 노트/로드맵) + 뷰 전환 + 플로팅 AI 검색(`apps/spa/src/routes/Study.tsx`)
 
 ## 2) 실행/검증 방법
@@ -78,11 +108,9 @@
  - 학습 도구(로드맵/퀴즈/연습장/AI검색) 추가로 제품 완성도 향상
 
 ## 4) 남은 작업/후속(다음 단계 연계)
-- SPA 고도화: 라우팅/상태관리/에러 UX 보완, 환경변수 처리(Vite `VITE_API_BASE_URL`)
-- Next.js 앱 비활성화 완료(로컬/Compose/DevContainer 경로에서 제거). 소스 폴더는 이후 단계에서 폐기 예정
-- Study 노트 UI 개선: 생성/수정 폼/모달, 정렬/검색, AI analyze·search 고도화
+- SPA 고도화: 라우팅/상태관리/에러 UX 보완(진행중), 환경변수 처리(Vite `VITE_API_BASE_URL`) [완료]
 - IaC 확장: API GW 경로/람다 연결, Secrets/알람 세부 구성, 배포 파이프라인에서 UI 전용/백엔드 전용 Job 분기
-- `@echo-ai/api-core`에 zod 스키마 및 에러 규약 반영, 목록/검색 파라미터 최종화 및 계약 테스트 확장
+- `@echo-ai/api-core`에 zod 스키마 및 에러 규약 반영[에러 규약 반영 완료], 목록/검색 파라미터 최종화 및 계약 테스트 확장(계약 테스트 1차 보완 완료, 추가 시나리오 진행중)
 - CDK 스택(dev) 배포(단계 5), Secrets Manager 통합(단계 6), CI/CD 재정의(단계 7)
 
 ## 5) 변경 파일 목록

@@ -18,3 +18,7 @@ export async function generateQuiz(content: string, count = 5) {
 export async function analyzeStudy(input: { title?: string; content?: string; good_example?: string; bad_example?: string }) {
   return api('/study/analyze', { method: 'POST', json: input });
 }
+
+export async function searchStudy(searchTerm: string) {
+  return api('/study/search', { method: 'POST', json: { searchTerm } });
+}

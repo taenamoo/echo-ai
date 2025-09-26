@@ -5,11 +5,9 @@ import { S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { v4 as uuidv4 } from 'uuid';
 import { PresignCreateSchema } from './schemas';
+import { ok, badRequest, unauthorized, json, badRequestFromZod, zodIssues, serverError } from './http';
 
-function json(status: number, body: unknown): NormalizedResponse { return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body }; }
-function ok(body: unknown) { return json(200, body); }
-function badRequest(message: string) { return json(400, { message }); }
-function unauthorized(message: string) { return json(401, { message }); }
+// Use shared HTTP helpers for consistent error format
 
 const ALLOWED_EXTENSIONS = ['.txt', '.md', '.pdf', '.docs'] as const;
 const ALLOWED_TYPES = [
@@ -55,13 +53,13 @@ export async function createPresignHandler(req: NormalizedRequest): Promise<Norm
   const token = bearer(req.headers);
   if (!token) return unauthorized('인증 토큰이 없습니다.');
   const vr = verifyTokenDetailed(token);
-  if (!vr.ok) return unauthorized(vr.reason === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.');
+  if (!vr.ok) return unauthorized(vr.reason === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.', { reason: vr.reason });
   const userId = (vr.payload as any)?.userId as string;
   if (!userId) return unauthorized('유효하지 않은 토큰입니다.');
 
   const parsed = req.body ? safeJson<unknown>(req.body) : {};
   const check = PresignCreateSchema.safeParse(parsed);
-  if (!check.success) return badRequest('filename과 contentType은 필수입니다.');
+  if (!check.success) return badRequest('filename과 contentType은 필수입니다.', zodIssues(check.error));
   const { filename, contentType, size: sizeOpt } = check.data as any;
   const size = Number(sizeOpt || 0);
 
@@ -86,7 +84,11 @@ export async function createPresignHandler(req: NormalizedRequest): Promise<Norm
     Expires: Math.floor(expiresIn / 1),
   });
 
-  return ok({ method: 'POST', url, fields, bucket: cfg.s3BucketName, key, expiration: expiresIn, documentId });
+  try {
+    return ok({ method: 'POST', url, fields, bucket: cfg.s3BucketName, key, expiration: expiresIn, documentId });
+  } catch (e) {
+    return serverError('프리사인드 URL 생성 중 오류가 발생했습니다.');
+  }
 }
 
 function safeJson<T>(raw: string): T | null { try { return JSON.parse(raw) as T; } catch { return null; } }

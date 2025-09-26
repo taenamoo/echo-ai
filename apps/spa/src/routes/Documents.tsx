@@ -4,7 +4,7 @@ import Footer from '../components/Footer';
 import StatusBadge from '../components/StatusBadge';
 import { formatDate, formatSize } from '../lib/format';
 import { useToast } from '../providers/ToastProvider';
-import { presign, s3PresignedUpload, createDocument, summarize, api } from '../api';
+import { presign, s3PresignedUpload, createDocument, summarize, api, isApiError } from '../api';
 
 export default function Documents() {
   const { push } = useToast();
@@ -41,7 +41,8 @@ export default function Documents() {
       setItems(cursor ? [...items, ...(data.items || [])] : (data.items || []));
       setNextCursor(data.nextCursor);
     } catch (e: any) {
-      setErrorMessage(e.message || '목록을 불러오는 중 오류가 발생했습니다.');
+      if (isApiError(e)) setErrorMessage(`${e.message}${e.code ? ' (' + e.code + ')' : ''}`);
+      else setErrorMessage(e.message || '목록을 불러오는 중 오류가 발생했습니다.');
     } finally { setLoadingList(false); }
   }
 

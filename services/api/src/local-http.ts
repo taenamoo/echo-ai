@@ -29,7 +29,7 @@ function send(res: ServerResponse, statusCode: number, body?: string, headers?: 
   res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Headers', 'authorization,content-type');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
   if (headers) for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
   res.end(body ?? '');
 }
@@ -75,7 +75,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     const headers = toHeaders(req);
     const rawQueryString = url.searchParams.toString();
     const queryStringParameters = Object.fromEntries(url.searchParams.entries());
-    const bodyRaw = method === 'POST' ? await readBody(req) : null;
+    const bodyRaw = (method === 'POST' || method === 'PUT' || method === 'PATCH') ? await readBody(req) : null;
     const rk = routeKey(method, rawPath);
 
     // Build minimal API Gateway v2 event

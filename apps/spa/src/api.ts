@@ -28,9 +28,29 @@ export async function api(path: string, opts: RequestInit & { json?: any } = {})
         window.dispatchEvent(new CustomEvent('auth:session-expired'));
       } catch {}
     }
-    throw new Error(data?.message || `${res.status} Error`);
+    const message = data?.message || `${res.status} Error`;
+    const code = data?.code as (string | undefined);
+    const details = data?.details as (unknown | undefined);
+    throw new ApiError(res.status, message, code, details);
   }
   return data;
+}
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  details?: unknown;
+  constructor(status: number, message: string, code?: string, details?: unknown) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+export function isApiError(e: unknown): e is ApiError {
+  return !!e && typeof e === 'object' && (e as any).name === 'ApiError';
 }
 
 export async function presign(filename: string, contentType: string, size?: number) {

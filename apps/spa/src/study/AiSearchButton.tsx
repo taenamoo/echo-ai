@@ -1,6 +1,5 @@
 import React, { FormEvent, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
-import { api } from '../api';
+import { searchStudy } from '../studyApi';
 
 type Msg = { role: 'user' | 'ai'; text: string };
 
@@ -44,11 +43,8 @@ export default function AiSearchButton() {
     setIsSearching(true);
 
     try {
-      const { data } = await axios.post('/api/study/search', 
-        { searchTerm: userMessage.text },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const aiMessage = { role: 'ai' as const, text: data.result };
+      const res = await searchStudy(userMessage.text);
+      const aiMessage = { role: 'ai' as const, text: res.result };
       setConversation(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("AI search failed", error);

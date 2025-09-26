@@ -3,12 +3,13 @@ import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { comparePassword, generateAccessToken, verifyTokenDetailed } from '@echo-ai/auth';
 import { LoginSchema, SignupSchema } from './schemas';
+import { ok, badRequest, unauthorized, conflict, serverError, json } from './http';
 
 export async function loginHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
     const parsed = req.body ? safeJson<unknown>(req.body) : null;
     const result = LoginSchema.safeParse(parsed);
-    if (!result.success) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    if (!result.success) return badRequest('이메일과 비밀번호를 입력해주세요.', { issues: result.error.issues }, 'VALIDATION_ERROR');
     const body = result.data;
 
     const query = new QueryCommand({
@@ -36,7 +37,7 @@ export async function signupHandler(req: NormalizedRequest): Promise<NormalizedR
   try {
     const parsed = req.body ? safeJson<unknown>(req.body) : null;
     const checkInput = SignupSchema.safeParse(parsed);
-    if (!checkInput.success) return badRequest('이메일과 비밀번호를 입력해주세요.');
+    if (!checkInput.success) return badRequest('이메일과 비밀번호를 입력해주세요.', { issues: checkInput.error.issues }, 'VALIDATION_ERROR');
     const body = checkInput.data;
 
     const { validatePasswordPolicy, hashPassword } = await import('@echo-ai/auth');
@@ -67,7 +68,7 @@ export async function signupHandler(req: NormalizedRequest): Promise<NormalizedR
       },
     }));
     const accessToken = generateAccessToken(userId, body.email, { expiresIn: '1h' });
-    return { status: 201, headers: { 'content-type': 'application/json; charset=utf-8' }, body: { userId, email: body.email, name: body.name || '', accessToken } };
+    return json(201, { userId, email: body.email, name: body.name || '', accessToken });
   } catch (e) {
     console.error('signupHandler error', e);
     return serverError();
@@ -79,7 +80,7 @@ export async function meHandler(req: NormalizedRequest): Promise<NormalizedRespo
     const token = getAuthToken(req.headers);
     if (!token) return unauthorized('인증 토큰이 없습니다.');
     const res = verifyTokenDetailed(token);
-    if (!res.ok) return unauthorized(res.reason === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.');
+    if (!res.ok) return unauthorized(res.reason === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.', { reason: res.reason });
     const payload = res.payload as any;
     const userId = payload?.userId as string;
     const get = await dynamoDbDocumentClient.send(new GetCommand({
@@ -99,14 +100,7 @@ function safeJson<T>(raw: string): T | null {
   try { return JSON.parse(raw) as T; } catch { return null; }
 }
 
-function json(status: number, body: unknown): NormalizedResponse {
-  return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body };
-}
-function ok(body: unknown) { return json(200, body); }
-function badRequest(message: string) { return json(400, { message }); }
-function unauthorized(message: string) { return json(401, { message }); }
-function conflict(message: string) { return json(409, { message }); }
-function serverError(message = '서버 오류가 발생했습니다.') { return json(500, { message }); }
+// Shared HTTP helpers are used instead of local definitions
 
 function getAuthToken(headers: Record<string, string | undefined>): string | null {
   const auth = headers['authorization'] || headers['Authorization'];

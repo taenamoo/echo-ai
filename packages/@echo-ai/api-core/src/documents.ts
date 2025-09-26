@@ -9,16 +9,9 @@ import { getConfig } from '@echo-ai/config';
 import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
 import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 import { DocumentCreateSchema, DocumentListQuerySchema } from './schemas';
+import { ok, created, accepted, badRequest, unauthorized, forbidden, notFound, serverError, zodIssues } from './http';
 
-function json(status: number, body: unknown): NormalizedResponse { return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body }; }
-function ok(body: unknown) { return json(200, body); }
-function created(body: unknown) { return json(201, body); }
-function accepted(body: unknown) { return json(202, body); }
-function badRequest(message: string) { return json(400, { message }); }
-function unauthorized(message: string) { return json(401, { message }); }
-function forbidden(message: string) { return json(403, { message }); }
-function notFound(message: string) { return json(404, { message }); }
-function serverError(message = '서버 오류가 발생했습니다.') { return json(500, { message }); }
+// Use shared HTTP helpers to unify error format
 
 function getAuth(headers: Record<string, string | undefined>): { ok: true; userId: string } | { ok: false; res: NormalizedResponse } {
   const auth = headers['authorization'] || headers['Authorization'];
@@ -38,7 +31,7 @@ export async function createDocumentHandler(req: NormalizedRequest): Promise<Nor
     const userId = auth.userId;
     const raw = req.body ? safeJson<unknown>(req.body) : null;
     const parsed = DocumentCreateSchema.safeParse(raw);
-    if (!parsed.success) return badRequest('key와 filename은 필수입니다.');
+    if (!parsed.success) return badRequest('key와 filename은 필수입니다.', zodIssues(parsed.error), 'VALIDATION_ERROR');
     const body = parsed.data;
     const parts = body.key.split('/');
     if (parts.length < 4 || parts[0] !== 'uploads' || parts[1] !== userId) return badRequest('key 형식이 올바르지 않습니다.');
@@ -71,7 +64,7 @@ export async function listDocumentsHandler(req: NormalizedRequest): Promise<Norm
     const userId = auth.userId;
     const qp = req.query || {};
     const parsedQuery = DocumentListQuerySchema.safeParse(qp);
-    if (!parsedQuery.success) return badRequest('잘못된 쿼리 파라미터입니다.');
+    if (!parsedQuery.success) return badRequest('잘못된 쿼리 파라미터입니다.', zodIssues(parsedQuery.error), 'VALIDATION_ERROR');
     const q = parsedQuery.data.q || '';
     const limit = parsedQuery.data.limit ?? 20;
     const sortKeyParam = parsedQuery.data.sortKey || 'createdAt';
@@ -227,7 +220,7 @@ export async function summarizeDocumentSyncHandler(req: NormalizedRequest & { pa
     const getRes = await dynamoDbDocumentClient.send(new GetCommand({ TableName: MAIN_TABLE_NAME, Key: { PK: `USER#${userId}`, SK: `DOC#${documentId}` } }));
     const doc = getRes.Item as any;
     if (!doc || doc.userId !== userId) return notFound('문서를 찾을 수 없거나 권한이 없습니다.');
-    if ((doc.status || '').toUpperCase() === 'PROCESSING') return json(409, { message: '해당 문서는 요약 처리 중입니다.' });
+    if ((doc.status || '').toUpperCase() === 'PROCESSING') return conflict('해당 문서는 요약 처리 중입니다.', { status: doc.status });
 
     // update to PROCESSING
     await dynamoDbDocumentClient.send(new UpdateCommand({

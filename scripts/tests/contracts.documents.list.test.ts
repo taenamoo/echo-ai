@@ -29,13 +29,45 @@ async function testInvalidQuery() {
   log('lambda adapter invalid query');
 }
 
+async function testInvalidSortKeyAndCursor() {
+  const token = process.env.TEST_TOKEN;
+  if (!token) {
+    console.warn('Set TEST_TOKEN in .env.local to run this test. Skipping.');
+    return;
+  }
+  const headers = { authorization: 'Bearer ' + token } as any;
+
+  // invalid sortKey
+  {
+    const req = { method: 'GET', path: '/api/documents', headers, query: { sortKey: 'invalid' } } as any;
+    const res = await listDocumentsHandler(req);
+    assert(res.status === 400, 'shared handler should 400 on invalid sortKey');
+
+    const event: any = { requestContext: { http: { method: 'GET' } }, rawPath: '/documents', headers, queryStringParameters: { sortKey: 'invalid' } };
+    const lambdaRes = await lambdaList(event);
+    assert(lambdaRes.statusCode === 400, 'lambda adapter should 400 on invalid sortKey');
+  }
+
+  // invalid cursor (not base64)
+  {
+    const req = { method: 'GET', path: '/api/documents', headers, query: { cursor: 'not-base64' } } as any;
+    const res = await listDocumentsHandler(req);
+    assert(res.status === 400, 'shared handler should 400 on invalid cursor');
+
+    const event: any = { requestContext: { http: { method: 'GET' } }, rawPath: '/documents', headers, queryStringParameters: { cursor: 'not-base64' } };
+    const lambdaRes = await lambdaList(event);
+    assert(lambdaRes.statusCode === 400, 'lambda adapter should 400 on invalid cursor');
+  }
+  log('invalid sortKey/cursor checks');
+}
+
 (async () => {
   try {
     await testInvalidQuery();
+    await testInvalidSortKeyAndCursor();
     console.log('\nContracts: documents.list completed');
   } catch (e) {
     console.error('Contracts failed:', e);
     process.exit(1);
   }
 })();
-
