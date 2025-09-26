@@ -1,5 +1,21 @@
 #!/bin/bash
 
+# 0. ensure dependencies are installed (when node_modules is an anonymous volume)
+if [ ! -d "/app/node_modules" ] || [ -z "$(ls -A /app/node_modules 2>/dev/null)" ] || [ ! -e "/app/node_modules/@echo-ai/config" ]; then
+  echo "node_modules missing or empty. Running pnpm install..."
+  pnpm config set store-dir .pnpm-store
+  pnpm install
+fi
+
+# 0.1. export variables from .env.local into current shell for all subsequent commands
+if [ -f "/app/.env.local" ]; then
+  echo "Loading environment from /app/.env.local"
+  set -a
+  # shellcheck disable=SC1091
+  . /app/.env.local
+  set +a
+fi
+
 # 1. wait for the database to be ready
 until nc -z dynamodb-local 8998; do
   echo "Waiting for database at $DB_HOST:$DB_PORT..."

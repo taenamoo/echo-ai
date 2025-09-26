@@ -69,6 +69,9 @@ importers:
       '@types/node':
         specifier: ^20
         version: 20.19.9
+      '@types/pdf-parse':
+        specifier: ^1.1.5
+        version: 1.1.5
       '@types/react':
         specifier: ^19
         version: 19.1.8
@@ -99,6 +102,180 @@ importers:
       typescript:
         specifier: ^5
         version: 5.8.3
+
+  apps/web:
+    dependencies:
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.850.0
+        version: 3.850.0(@aws-sdk/client-dynamodb@3.848.0)
+      '@aws-sdk/s3-presigned-post':
+        specifier: ^3.879.0
+        version: 3.879.0
+      '@echo-ai/auth':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/auth
+      '@echo-ai/aws-clients':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/aws-clients
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/config
+      '@echo-ai/core-domain':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/core-domain
+      '@echo-ai/documents':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/documents
+      '@google/generative-ai':
+        specifier: ^0.24.1
+        version: 0.24.1
+      axios:
+        specifier: ^1.11.0
+        version: 1.11.0
+      next:
+        specifier: 15.4.1
+        version: 15.4.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-dom:
+        specifier: 19.1.0
+        version: 19.1.0(react@19.1.0)
+      uuid:
+        specifier: ^11.1.0
+        version: 11.1.0
+    devDependencies:
+      '@eslint/eslintrc':
+        specifier: ^3
+        version: 3.3.1
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.11
+      '@types/node':
+        specifier: ^20
+        version: 20.19.9
+      '@types/react':
+        specifier: ^19
+        version: 19.1.8
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.1.6(@types/react@19.1.8)
+      cross-env:
+        specifier: ^10.0.0
+        version: 10.0.0
+      dotenv-cli:
+        specifier: ^10.0.0
+        version: 10.0.0
+      eslint:
+        specifier: ^9
+        version: 9.31.0(jiti@2.4.2)
+      eslint-config-next:
+        specifier: 15.4.1
+        version: 15.4.1(eslint@9.31.0(jiti@2.4.2))(typescript@5.8.3)
+      eslint-config-prettier:
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@9.31.0(jiti@2.4.2))
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.11
+      typescript:
+        specifier: ^5
+        version: 5.8.3
+
+  packages/@echo-ai/auth:
+    dependencies:
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../config
+      bcryptjs:
+        specifier: ^3.0.2
+        version: 3.0.2
+      jsonwebtoken:
+        specifier: ^9.0.2
+        version: 9.0.2
+
+  packages/@echo-ai/aws-clients:
+    dependencies:
+      '@aws-sdk/client-dynamodb':
+        specifier: ^3.848.0
+        version: 3.848.0
+      '@aws-sdk/client-s3':
+        specifier: ^3.864.0
+        version: 3.879.0
+      '@aws-sdk/client-sqs':
+        specifier: ^3.879.0
+        version: 3.879.0
+      '@aws-sdk/lib-dynamodb':
+        specifier: ^3.850.0
+        version: 3.850.0(@aws-sdk/client-dynamodb@3.848.0)
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../config
+
+  packages/@echo-ai/config: {}
+
+  packages/@echo-ai/core-domain: {}
+
+  packages/@echo-ai/documents:
+    dependencies:
+      '@aws-sdk/client-sqs':
+        specifier: ^3.879.0
+        version: 3.879.0
+      '@echo-ai/aws-clients':
+        specifier: workspace:*
+        version: link:../aws-clients
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../config
+      '@echo-ai/core-domain':
+        specifier: workspace:*
+        version: link:../core-domain
+      pdf-parse:
+        specifier: ^1.1.1
+        version: 1.1.1
+    devDependencies:
+      '@types/pdf-parse':
+        specifier: ^1.1.5
+        version: 1.1.5
+
+  services/ai-processor:
+    dependencies:
+      '@echo-ai/aws-clients':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/aws-clients
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/config
+      '@echo-ai/core-domain':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/core-domain
+      '@echo-ai/documents':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/documents
+      '@google/generative-ai':
+        specifier: ^0.21.0
+        version: 0.21.0
+
+  services/api:
+    dependencies:
+      '@echo-ai/auth':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/auth
+      '@echo-ai/aws-clients':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/aws-clients
+      '@echo-ai/config':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/config
+      '@echo-ai/core-domain':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/core-domain
+      '@echo-ai/documents':
+        specifier: workspace:*
+        version: link:../../packages/@echo-ai/documents
 
 packages:
 
@@ -594,6 +771,10 @@ packages:
   '@eslint/plugin-kit@0.3.4':
     resolution: {integrity: sha512-Ul5l+lHEcw3L5+k8POx6r74mxEYKG5kOb6Xpy2gCRW6zweT6TEhAf8vhxGgjhqrd/VO/Dirhsb+1hNpD1ue9hw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@google/generative-ai@0.21.0':
+    resolution: {integrity: sha512-7XhUbtnlkSEZK15kN3t+tzIMxsbKm/dSkKBFalj+20NvPKe1kBY7mR2P7vuijEn+f06z5+A8bVGKO0v39cr6Wg==}
+    engines: {node: '>=18.0.0'}
 
   '@google/generative-ai@0.24.1':
     resolution: {integrity: sha512-MqO+MLfM6kjxcKoy0p1wRzG3b4ZZXtPI+z2IE26UogS2Cm/XHO+7gGRBh6gcJsOiIVoH93UwKvW4HdgiOZCy9Q==}
@@ -1284,6 +1465,9 @@ packages:
 
   '@types/node@20.19.9':
     resolution: {integrity: sha512-cuVNgarYWZqxRJDQHEB58GEONhOK79QVR/qYx4S7kcUObQvUwvFnYxJuuHUKm2aieN9X3yZB4LZsuYNU1Qphsw==}
+
+  '@types/pdf-parse@1.1.5':
+    resolution: {integrity: sha512-kBfrSXsloMnUJOKi25s3+hRmkycHfLK6A09eRGqF/N8BkQoPUmaCr+q8Cli5FnfohEz/rsv82zAiPz/LXtOGhA==}
 
   '@types/react-dom@19.1.6':
     resolution: {integrity: sha512-4hOiT/dwO8Ko0gV1m/TJZYk3y0KBnY9vzDh7W+DH17b2HFSOGgdj33dhihPeuy3l0q23+4e+hoXHV6hCC4dCXw==}
@@ -3843,6 +4027,8 @@ snapshots:
       '@eslint/core': 0.15.1
       levn: 0.4.1
 
+  '@google/generative-ai@0.21.0': {}
+
   '@google/generative-ai@0.24.1': {}
 
   '@humanfs/core@0.19.1': {}
@@ -4671,6 +4857,10 @@ snapshots:
   '@types/node@20.19.9':
     dependencies:
       undici-types: 6.21.0
+
+  '@types/pdf-parse@1.1.5':
+    dependencies:
+      '@types/node': 20.19.9
 
   '@types/react-dom@19.1.6(@types/react@19.1.8)':
     dependencies:

@@ -1,0 +1,22 @@
+{
+  "name": "@echo-ai/documents",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./queue": "./src/queue.ts",
+    "./text-extract": "./src/text-extract.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.879.0",
+    "@echo-ai/aws-clients": "workspace:*",
+    "@echo-ai/config": "workspace:*",
+    "@echo-ai/core-domain": "workspace:*",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/pdf-parse": "^1.1.5"
+  }
+}

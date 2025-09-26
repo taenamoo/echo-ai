@@ -7,18 +7,20 @@ services:
       dockerfile: Dockerfile
     container_name: echo-ai-app
     ports:
-      - '3001:3000'
+      - '3000:3000'
     volumes:
       - .:/app
       - /app/node_modules
       - /app/.next
       - /app/.pnpm-store
+    env_file:
+      - .env.local
     environment:
       - NODE_ENV=development
       # HOT RELOAD
       - WATCHPACK_POLLING=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
-      - S3_ENDPOINT=http://localstack:4566
+      # app-specific overrides can remain here if needed
       #- DYNAMODB_ENDPOINT=http://dynamodb-local:8998
     dns:
       - 8.8.8.8
@@ -26,6 +28,29 @@ services:
       - dynamodb-local
       - localstack
       - dynamodb-init
+    networks:
+      - echo-ai-net
+
+  ai-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echo-ai-processor
+    depends_on:
+      - localstack
+      - dynamodb-local
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
+    command:
+      ['pnpm', '--filter', '@echo-ai/service-ai-processor', 'run', 'local']
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.pnpm-store
     networks:
       - echo-ai-net
 
@@ -37,7 +62,7 @@ services:
     volumes:
       - ./docker/dynamodb_data:/home/dynamodblocal/data
     working_dir: /home/dynamodblocal
-    command: "-jar DynamoDBLocal.jar -port 8998 -sharedDb"
+    command: '-jar DynamoDBLocal.jar -port 8998 -sharedDb'
     networks:
       - echo-ai-net
 
@@ -57,14 +82,15 @@ services:
     image: localstack/localstack:latest
     container_name: echo-ai-localstack
     ports:
-      - "4566:4566"
-      - "4571:4571"
+      - '4566:4566'
+      - '4571:4571'
     environment:
-      - SERVICES=s3
+      - SERVICES=s3,sqs
       - AWS_REGION=${AWS_REGION:-ap-northeast-2}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME:-test-bucket}
     volumes:
-      - "./setting/bash/localstack-init-s3.sh:/etc/localstack/init/ready.d/10-init-s3.sh:ro"
+      - './setting/bash/localstack-init-s3.sh:/etc/localstack/init/ready.d/10-init-s3.sh:ro'
+      - './setting/bash/localstack-init-sqs.sh:/etc/localstack/init/ready.d/20-init-sqs.sh:ro'
     networks:
       - echo-ai-net
 
@@ -80,10 +106,10 @@ services:
       DYNAMODB_ENDPOINT: http://dynamodb-local:8998
     volumes:
       - ./setting/bash/dynamodb-init.sh:/usr/local/bin/dynamodb-init.sh:ro
-    entrypoint: ["sh", "/usr/local/bin/dynamodb-init.sh"]
+    entrypoint: ['sh', '/usr/local/bin/dynamodb-init.sh']
     networks:
       - echo-ai-net
-    restart: "no"
+    restart: 'no'
 
 networks:
   echo-ai-net:

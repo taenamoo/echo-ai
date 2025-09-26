@@ -8,6 +8,7 @@ gha-creds-*.json
 
 # dependencies
 /node_modules
+**/node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -16,6 +17,11 @@ gha-creds-*.json
 !.yarn/releases
 !.yarn/versions
 /.pnpm-store/*
+/apps/web/node_modules
+/apps/api/node_modules
+# monorepo workspaces
+/packages/*/node_modules
+/services/*/node_modules
 
 # ca-certs
 *.crt
@@ -27,6 +33,7 @@ gha-creds-*.json
 
 # next.js
 /.next/
+/apps/web/.next/
 /out/
 
 # production
@@ -42,8 +49,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
+# Default: ignore all .env* files, but allow the shared template .env.local to be tracked
 .env*
+!.env.local
 
 # vercel
 .vercel
