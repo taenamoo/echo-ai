@@ -162,3 +162,24 @@ export const search: APIGatewayProxyHandlerV2 = async (event) => {
     return json(500, { message: 'AI 검색 처리 중 오류가 발생했습니다.' });
   }
 };
+
+export const analyze: APIGatewayProxyHandlerV2 = async (event) => {
+  const userId = authUserId(event.headers as any);
+  if (!userId) return json(401, { message: '인증이 필요합니다.' });
+  try {
+    const body = event.body ? JSON.parse(event.body) : {};
+    const content: string = String(body?.content || '');
+    const good: string = String(body?.good_example || '');
+    const bad: string = String(body?.bad_example || '');
+    const documentTitle: string = String(body?.title || '학습 노트');
+    const { geminiApiKey } = getConfig();
+    const genAI = new GoogleGenerativeAI(geminiApiKey);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+    const prompt = `당신은 React 초보 개발자를 위한 코드 리뷰 멘토입니다. 아래 내용과 예시에 대해 추가 의견을 한국어로 작성하세요.\n제목: ${documentTitle}\n[내용]\n${content}\n[좋은 예시]\n${good}\n[나쁜 예시]\n${bad}\n요구사항:\n- 핵심 개념 요약\n- 좋은 개선 포인트 3~5개\n- 피해야 할 실수 3~5개\n- 참고할 공식 문서 링크 1~3개`;
+    const result = await model.generateContent({ contents: [{ role: 'user', parts: [{ text: prompt }] }] });
+    const text = (await result.response).text();
+    return json(200, { suggestion: text || '' });
+  } catch (e: any) {
+    return json(500, { message: 'AI 분석 처리 중 오류가 발생했습니다.' });
+  }
+};

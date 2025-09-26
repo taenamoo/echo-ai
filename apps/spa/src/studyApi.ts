@@ -15,4 +15,6 @@ export async function deleteStudy(id: string) {
 export async function generateQuiz(content: string, count = 5) {
   return api('/study/quiz', { method: 'POST', json: { content, count } });
 }
-
+export async function analyzeStudy(input: { title?: string; content?: string; good_example?: string; bad_example?: string }) {
+  return api('/study/analyze', { method: 'POST', json: input });
+}

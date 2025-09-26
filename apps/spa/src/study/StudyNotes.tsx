@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { listStudies, createStudy, deleteStudy } from '../studyApi';
+import { listStudies, createStudy, deleteStudy, updateStudy, analyzeStudy } from '../studyApi';
 
 type Study = { study_id: string; parent_id: string | null; title: string; content?: string | null; good_example?: string | null; bad_example?: string | null; ai_suggestion?: string | null; reference_links?: string[]; children?: Study[] };
 
@@ -42,6 +42,16 @@ export default function StudyNotes() {
     if (!title) return;
     setBusy(true);
     try { await createStudy({ title, study_order: 0, parent_id: parentId }); await refresh(parentId); } finally { setBusy(false); }
+  }
+
+  async function runAnalyze(s: Study) {
+    setBusy(true);
+    try {
+      const res = await analyzeStudy({ title: s.title, content: s.content || '', good_example: s.good_example || '', bad_example: s.bad_example || '' });
+      const suggestion = (res?.suggestion as string) || '';
+      await updateStudy(s.study_id, { ai_suggestion: suggestion });
+      await refresh(s.study_id);
+    } finally { setBusy(false); }
   }
 
   async function remove(study: Study) {
@@ -96,6 +106,9 @@ export default function StudyNotes() {
                 {!selected.parent_id && (
                   <button onClick={() => void addChild(selected.study_id)} className="bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors">하위 메뉴 추가</button>
                 )}
+                {selected.parent_id && (
+                  <button onClick={() => void runAnalyze(selected)} className="bg-sky-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-600 transition-colors">AI 분석</button>
+                )}
                 <button onClick={() => void remove(selected)} className="bg-red-100 text-red-700 font-semibold py-2 px-4 rounded-lg hover:bg-red-200 transition-colors">삭제</button>
               </div>
             </div>
@@ -139,4 +152,3 @@ export default function StudyNotes() {
     </div>
   );
 }
-

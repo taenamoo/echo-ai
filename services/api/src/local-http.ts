@@ -54,6 +54,7 @@ function routeKey(method: string, rawPath: string): string {
   if (/^\/study\/[^\/]+$/.test(rawPath) && method === 'DELETE') return 'DELETE /study/{id}';
   if (rawPath === '/study/quiz' && method === 'POST') return 'POST /study/quiz';
   if (rawPath === '/study/search' && method === 'POST') return 'POST /study/search';
+  if (rawPath === '/study/analyze' && method === 'POST') return 'POST /study/analyze';
   if (/^\/documents\/[^\/]+$/.test(rawPath) && method === 'GET') return 'GET /documents/{id}';
   if (/^\/documents\/[^\/]+$/.test(rawPath) && method === 'DELETE') return 'DELETE /documents/{id}';
   if (/^\/documents\/[^\/]+\/summarize$/.test(rawPath) && method === 'POST') return 'POST /documents/{id}/summarize';
@@ -140,6 +141,10 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (rk === 'POST /study/search') {
       const r = await (Study.search as any)(baseEvent);
+      send(res, r.statusCode || 200, r.body, r.headers); return;
+    }
+    if (rk === 'POST /study/analyze') {
+      const r = await (Study.analyze as any)(baseEvent);
       send(res, r.statusCode || 200, r.body, r.headers); return;
     }
     if (rk === 'GET /documents') {
