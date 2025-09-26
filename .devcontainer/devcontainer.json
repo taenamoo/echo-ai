@@ -1,7 +1,16 @@
 {
     "name": "Echo AI Dev Container",
     "dockerComposeFile": "../docker-compose.yml",
-    "service": "app",
+    "service": "api-local",
+    "runServices": [
+        "dynamodb-local",
+        "localstack",
+        "dynamodb-init",
+        "ai-processor",
+        "api-local",
+        "spa",
+        "dynamodb-admin"
+    ],
     "workspaceFolder": "/app",
     "customizations": {
         "vscode": {
@@ -17,5 +26,8 @@
     },
     "remoteEnv": {
         "NODE_ENV": "development"
-    }
+    },
+    "overrideCommand": false,
+    "postCreateCommand": "echo 'Devcontainer ready. Use pnpm dev or docker-compose services.'",
+    
 }

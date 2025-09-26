@@ -29,34 +29,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Branch B: legacy multipart upload (server-side upload)
+    const ALLOW_MULTIPART_UPLOAD = /^true$/i.test(process.env.ALLOW_MULTIPART_UPLOAD || '');
+    if (!ALLOW_MULTIPART_UPLOAD) {
+      return NextResponse.json(
+        { message: '서버사이드 업로드 경로는 사용 중단되었습니다. 프리사인드 업로드(Presign-only)를 사용하세요.' },
+        { status: 410 }
+      );
+    }
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-
-    if (!file) {
-      return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
-    }
-    // 정책 검증: 확장자/타입/크기
-    if (!isAllowedExtension(file.name)) {
-      return NextResponse.json({ message: '허용되지 않는 파일 확장자입니다. (.txt/.md/.pdf/.docs)' }, { status: 400 });
-    }
-    if (file.type && !isAllowedMime(file.type)) {
-      return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });
-    }
-    if (!isAllowedSize(file.size)) {
-      return NextResponse.json({ message: '파일 크기가 제한(25MB)을 초과했습니다.' }, { status: 400 });
-    }
+    if (!file) return NextResponse.json({ message: '파일이 필요합니다.' }, { status: 400 });
+    if (!isAllowedExtension(file.name)) return NextResponse.json({ message: '허용되지 않는 파일 확장자입니다. (.txt/.md/.pdf/.docs)' }, { status: 400 });
+    if (file.type && !isAllowedMime(file.type)) return NextResponse.json({ message: '허용되지 않은 Content-Type 입니다.' }, { status: 400 });
+    if (!isAllowedSize(file.size)) return NextResponse.json({ message: '파일 크기가 제한(25MB)을 초과했습니다.' }, { status: 400 });
     const documentId = uuidv4();
     const fileBuffer = Buffer.from(await file.arrayBuffer());
     const s3Key = `uploads/${userId}/${documentId}/${file.name}`;
-
-    const s3Command = new PutObjectCommand({
-      Bucket: S3_BUCKET_NAME,
-      Key: s3Key,
-      Body: fileBuffer,
-      ContentType: file.type,
-    });
+    const s3Command = new PutObjectCommand({ Bucket: S3_BUCKET_NAME, Key: s3Key, Body: fileBuffer, ContentType: file.type });
     await s3Client.send(s3Command);
-
     const res = await createDocumentHandler({
       method: 'POST',
       path: '/api/documents',

@@ -8,6 +8,7 @@ import { enqueueSummarizeJob } from '@echo-ai/documents';
 import { getConfig } from '@echo-ai/config';
 import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
 import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
+import { DocumentCreateSchema, DocumentListQuerySchema } from './schemas';
 
 function json(status: number, body: unknown): NormalizedResponse { return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body }; }
 function ok(body: unknown) { return json(200, body); }
@@ -35,8 +36,10 @@ export async function createDocumentHandler(req: NormalizedRequest): Promise<Nor
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
-    const body = req.body ? safeJson<{ key?: string; filename?: string; filetype?: string; filesize?: number; documentId?: string }>(req.body) : null;
-    if (!body?.key || !body?.filename) return badRequest('key와 filename은 필수입니다.');
+    const raw = req.body ? safeJson<unknown>(req.body) : null;
+    const parsed = DocumentCreateSchema.safeParse(raw);
+    if (!parsed.success) return badRequest('key와 filename은 필수입니다.');
+    const body = parsed.data;
     const parts = body.key.split('/');
     if (parts.length < 4 || parts[0] !== 'uploads' || parts[1] !== userId) return badRequest('key 형식이 올바르지 않습니다.');
     const documentId = parts[2];
@@ -67,12 +70,13 @@ export async function listDocumentsHandler(req: NormalizedRequest): Promise<Norm
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
     const qp = req.query || {};
-    const q = (qp as any).q || '';
-    const limitParam = Number((qp as any).limit || 20);
-    const limit = Math.max(1, Math.min(100, isNaN(limitParam) ? 20 : limitParam));
-    const sortKeyParam = ((qp as any).sortKey || 'createdAt') as any;
-    const sortDirParam = ((qp as any).sortDir || 'desc') as any;
-    const cursor = (qp as any).cursor;
+    const parsedQuery = DocumentListQuerySchema.safeParse(qp);
+    if (!parsedQuery.success) return badRequest('잘못된 쿼리 파라미터입니다.');
+    const q = parsedQuery.data.q || '';
+    const limit = parsedQuery.data.limit ?? 20;
+    const sortKeyParam = parsedQuery.data.sortKey || 'createdAt';
+    const sortDirParam = parsedQuery.data.sortDir || 'desc';
+    const cursor = parsedQuery.data.cursor;
 
     const pk = `USER#${userId}`;
     let ExclusiveStartKey: any = undefined;

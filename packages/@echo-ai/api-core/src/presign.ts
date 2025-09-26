@@ -4,7 +4,7 @@ import { getConfig } from '@echo-ai/config';
 import { S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { v4 as uuidv4 } from 'uuid';
-import { z } from 'zod';
+import { PresignCreateSchema } from './schemas';
 
 function json(status: number, body: unknown): NormalizedResponse { return { status, headers: { 'content-type': 'application/json; charset=utf-8' }, body }; }
 function ok(body: unknown) { return json(200, body); }
@@ -59,13 +59,8 @@ export async function createPresignHandler(req: NormalizedRequest): Promise<Norm
   const userId = (vr.payload as any)?.userId as string;
   if (!userId) return unauthorized('유효하지 않은 토큰입니다.');
 
-  const BodySchema = z.object({
-    filename: z.string().min(1),
-    contentType: z.string().min(1),
-    size: z.number().int().nonnegative().optional(),
-  });
   const parsed = req.body ? safeJson<unknown>(req.body) : {};
-  const check = BodySchema.safeParse(parsed);
+  const check = PresignCreateSchema.safeParse(parsed);
   if (!check.success) return badRequest('filename과 contentType은 필수입니다.');
   const { filename, contentType, size: sizeOpt } = check.data as any;
   const size = Number(sizeOpt || 0);
@@ -95,4 +90,3 @@ export async function createPresignHandler(req: NormalizedRequest): Promise<Norm
 }
 
 function safeJson<T>(raw: string): T | null { try { return JSON.parse(raw) as T; } catch { return null; } }
-

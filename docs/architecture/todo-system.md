@@ -1,13 +1,14 @@
-# 배포 자동화를 위한 목표 아키텍처
+# 배포 자동화를 위한 목표 아키텍처(단순화 반영)
 
 ## 1. 추진 목표
-- Next.js 모놀리식 런타임을 AWS 관리형 서비스 기반으로 이전하고, 인프라는 CloudFormation으로 코드화한다.
-- GitHub Actions에서 `develop`, `master` 브랜치 머지 시 자동 배포가 이루어지도록 한다.
-- 백엔드 스택 변경이 없을 때는 UI 정적 자산만 독립적으로 배포할 수 있는 경로를 마련한다.
+- Next.js 모놀리식을 제거하고, 서버 기능은 Lambda-first로 통일한다.
+- UI는 정적 SPA(예: Vite + React)로 전환하여 S3/CloudFront에서 서빙한다.
+- 인프라는 CloudFormation/CDK로 코드화하고, GitHub Actions에서 브랜치별 자동 배포를 수행한다.
+- 백엔드 변경이 없을 때 UI 정적 자산만 독립적으로 배포하는 경로를 제공한다.
 
 ## 2. 제안 토폴로지
 1. **클라이언트 제공**
-   - Next.js UI를 정적 자산으로 빌드하여 S3 버킷에 배포하고, CloudFront가 HTTPS 종료·캐싱·무효화를 담당한다.
+   - React 기반 SPA를 정적 자산으로 빌드하여 S3 버킷에 배포하고, CloudFront가 HTTPS 종료·캐싱·무효화를 담당한다.
 2. **API 계층**
    - Amazon API Gateway(REST)가 도메인별 Lambda 함수(인증, 문서, 요약 등)로 요청을 전달한다.
    - Lambda 함수는 기존 `packages/@echo-ai/*` 워크스페이스 모듈을 공유 레이어/번들로 사용한다.
@@ -32,28 +33,38 @@
 
 스택 템플릿은 `infra/` 디렉터리에 CDK 또는 순수 CloudFormation 형태로 저장·관리한다.
 
-## 4. CI/CD 워크플로(GitHub Actions)
-1. **트리거**
-   - `develop` 머지 → 개발 환경 스택 배포.
-   - `master` 머지 → 운영 환경 스택 배포.
-2. **파이프라인 단계**
-   - Lint/Test → 빌드(`pnpm build`) → Lambda 번들 및 UI 자산 패키징.
-   - `sam package`/`aws cloudformation package` 또는 CDK synth로 배포 가능한 템플릿을 생성한다.
-   - `aws cloudformation deploy`로 환경/스택 파라미터를 지정해 백엔드 스택을 배포한다.
-   - 변경 파일 경로를 검사하여 UI 자산만 수정된 경우 스택 배포를 건너뛰고 UI 전용 Job을 실행한다: 빌드된 자산을 UI용 S3 버킷에 업로드하고 `aws cloudfront create-invalidation`을 호출한다.
-3. **비밀 관리**
-   - GitHub Actions가 OIDC로 AWS IAM 역할을 가정해 배포 자격을 획득한다.
-   - Secrets Manager에 저장된 런타임 비밀은 필요 시 `aws secretsmanager put-secret-value`로 업데이트한다.
+## 4. CI/CD 워크플로(GitHub Actions) — 단순화 재정의
+1. **트리거/분기**
+   - `develop` → 개발 환경(dev) 배포, `master` → 운영(prod) 배포.
+   - 경로 기반 분기: UI(`apps/spa/**`), 백엔드(`services/api/**`, `services/ai-processor/**`, `packages/**`, `infra/**`).
+2. **UI 파이프라인(정적 SPA)**
+   - Lint/Test → Build(`pnpm --filter @echo-ai/app-spa build`) → S3 업로드(버킷/프리픽스 분리) → CloudFront 무효화.
+   - 백엔드 변경이 없으면 이 Job만 실행.
+3. **백엔드 파이프라인(Lambda + IaC)**
+   - Lint/Test → Build/Bundle(esbuild/tsup) → CDK synth/diff → Deploy(`cdk deploy --require-approval=never`).
+   - 변경 영향 범위에 따라 스택별 배포(Shared/UI 제외) 또는 전체 API 스택 배포.
+4. **권한/비밀**
+   - GitHub OIDC로 배포 역할을 가정(권한 최소화: CFN deploy, CloudFront 무효화, S3 put, iam:PassRole 제한).
+   - 런타임 비밀은 Secrets Manager로 관리하고, 파이프라인에서는 Secret 값 직접 주입을 피한다.
 
 ## 5. 마이그레이션 및 구현 단계
-1. DynamoDB 스키마 정합성을 확정하고 Lambda 실행 환경에 맞게 공통 패키지를 보완한다.
-2. Next.js Route Handler와 동일한 기능을 제공하는 `services/api` Lambda 핸들러를 구현한다.
-3. SQS 메시지를 처리하고 30초 SLA를 충족하도록 설계된 `services/ai-processor` Lambda를 완성한다.
-4. 각 스택에 필요한 IAM 정책과 태깅을 포함한 CloudFormation/CDK 템플릿을 작성한다.
-5. GitHub Actions 워크플로를 구성해 백엔드 스택 배포, UI 전용 배포, 공통 빌드 Job을 자동화한다.
-6. 지연·오류·큐 적체 등을 모니터링하는 기본 알람을 설정하고 Slack/이메일 알림 연계를 준비한다.
+1. DynamoDB 스키마 정합성 확정 및 Lambda 실행 환경에 맞춘 공통 패키지 보완.
+2. `services/api` Lambda 핸들러 구현 및 공유 핸들러(`@echo-ai/api-core`)로 단일 소스화(Next 경로 제거 전제).
+3. `services/ai-processor` SQS 워커 완성(p95 20초 목표) 및 비동기 요약 기본값 적용.
+4. CDK 템플릿 작성(IAM 최소권한·태깅 포함), 스택 출력으로 리소스 식별자 노출.
+5. GitHub Actions 워크플로 구성: UI-only/백엔드 분기, 캐시 최적화, OIDC 연동.
+6. 큐 적체·오류·지연에 대한 알람과 대시보드 구성.
 
-## 6. 미결정 사항
-- Gemini와 OpenAI 중 어느 요약 엔진을 표준으로 삼을지 결정하고, 그에 맞춰 Secrets Manager 스키마를 설계해야 한다.
-- UI 전용 배포를 언제 실행할지(경로 필터, 커밋 라벨 등) 명확한 기준을 정의해야 한다.
-- 순수 CloudFormation 템플릿과 CDK 중 어느 방식을 채택할지 결정해 팀 역량과 향후 거버넌스를 고려한 표준을 마련해야 한다.
+## 6. 결정 사항
+- Secrets 스키마: Secrets Manager JSON 형태로 정의한다.
+  - Secret 이름: `echoai/{stage}/app` (예: `echoai/develop/app`, `echoai/production/app`)
+  - JSON 키: `JWT_SECRET`(필수), `GEMINI_API_KEY`(선택), `OPENAI_API_KEY`(선택), `HASH_SALT`(선택), `SUMMARIZE_PROVIDER`(선택; 기본 'gemini')
+  - 주입 전략: 비프로덕션은 `.env` 병행 허용, 프로덕션/스테이징은 런타임 조회 + 캐싱(단계 6에서 구현)
+- UI 프레임워크: React SPA + Vite(정적 배포, SSR 미사용)
+- Microfrontend: 현 단계 미도입(단일 팀/범위). 다중 팀/독립 배포 필요 시 재검토
+- IaC: AWS CDK(TypeScript) 채택
+
+## 7. 로컬 개발 모델(참고)
+- LocalStack(S3,SQS) + DynamoDB Local로 인프라 에뮬레이션.
+- Lambda 로컬 HTTP 게이트웨이(Express/Hono)로 `services/api/src/lambda/*`를 HTTP에 마운트하여 프론트/테스트가 동일 엔드포인트 사용.
+- S3 프리사인드는 LocalStack 공개 엔드포인트를 활용하여 브라우저 업로드 가능.

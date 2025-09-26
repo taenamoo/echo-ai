@@ -25,8 +25,9 @@ RUN update-ca-certificates --fresh
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 
 # Pre-copy workspace manifests to leverage pnpm caching
-COPY apps/web/package.json apps/web/
+COPY apps/spa/package.json apps/spa/
 COPY packages/@echo-ai/auth/package.json packages/@echo-ai/auth/
+COPY packages/@echo-ai/api-core/package.json packages/@echo-ai/api-core/
 COPY packages/@echo-ai/aws-clients/package.json packages/@echo-ai/aws-clients/
 COPY packages/@echo-ai/config/package.json packages/@echo-ai/config/
 COPY packages/@echo-ai/core-domain/package.json packages/@echo-ai/core-domain/

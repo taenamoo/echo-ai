@@ -16,16 +16,18 @@ if [ -f "/app/.env.local" ]; then
   set +a
 fi
 
-# 1. wait for the database to be ready
-until nc -z dynamodb-local 8998; do
-  echo "Waiting for database at $DB_HOST:$DB_PORT..."
-  sleep 1
-done
-echo "Database is ready."
-
-# 2. run the migrations
-echo "Running migrations..."
-pnpm run db:migrate
+# 1. optionally wait for DynamoDB and run migrations (skip for pure SPA)
+if [ "${SKIP_DB_MIGRATE:-false}" != "true" ]; then
+  until nc -z dynamodb-local 8998; do
+    echo "Waiting for database (dynamodb-local:8998)..."
+    sleep 1
+  done
+  echo "Database is ready."
+  echo "Running migrations..."
+  pnpm run db:migrate
+else
+  echo "Skipping DB wait/migration (SKIP_DB_MIGRATE=true)"
+fi
 
 # 3. start the application
 echo "Starting the application..."

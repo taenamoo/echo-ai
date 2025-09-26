@@ -4,9 +4,9 @@ import { summarizeDocumentHandler, summarizeDocumentSyncHandler } from '@echo-ai
 import { getConfig } from '@echo-ai/config';
 
 const config = getConfig();
-const SUMMARIZE_ASYNC = /^true$/i.test(
-  process.env.SUMMARIZE_ASYNC ?? (config.stage === 'local' ? 'true' : '')
-);
+// Enforce async-by-default; allow opt-out only via explicit flag for transition
+const ALLOW_SYNC_SUMMARIZE = /^true$/i.test(process.env.ALLOW_SYNC_SUMMARIZE || '');
+const SUMMARIZE_ASYNC = !ALLOW_SYNC_SUMMARIZE;
 
 export async function POST(
   req: NextRequest,

@@ -1,15 +1,8 @@
 import type { NormalizedRequest, NormalizedResponse } from './types';
 import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
-import { QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { comparePassword, generateAccessToken } from '@echo-ai/auth';
-import { z } from 'zod';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { verifyTokenDetailed } from '@echo-ai/auth';
-
-const LoginSchema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
-});
+import { comparePassword, generateAccessToken, verifyTokenDetailed } from '@echo-ai/auth';
+import { LoginSchema, SignupSchema } from './schemas';
 
 export async function loginHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
@@ -38,12 +31,6 @@ export async function loginHandler(req: NormalizedRequest): Promise<NormalizedRe
     return serverError();
   }
 }
-
-const SignupSchema = z.object({
-  email: z.string().min(1),
-  password: z.string().min(1),
-  name: z.string().optional(),
-});
 
 export async function signupHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {

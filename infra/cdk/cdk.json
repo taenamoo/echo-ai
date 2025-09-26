@@ -1,0 +1,7 @@
+{
+  "app": "node --enable-source-maps --loader ts-node/esm bin/echoai.ts",
+  "context": {
+    "@aws-cdk/core:stackRelativeExports": true
+  }
+}
+

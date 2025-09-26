@@ -50,17 +50,28 @@
   - presign/업로드/목록/단건/삭제/요약 큐잉 시나리오 동등 동작.
   - Shared Handler 구조 확립으로 신규 기능이 양측에 자동 반영.
 
-### 단계 3.1 CI/CD 자동화(추가)
-- 목표: Next.js 라우트/공통 핸들러 변경 시 Lambda 자동 빌드·배포.
-- 작업
-  - GitHub Actions 워크플로: 변경 감지(`apps/web/src/app/api/**`, `services/api/**`, `packages/@echo-ai/**`).
-  - 빌드: esbuild/tsup 번들 → 아티팩트 업로드 → CDK `echoai-api` 스택 `cdk deploy --require-approval=never`.
-  - 배포 권한: GitHub OIDC → `EchoPipelineRole`(cloudformation deploy, iam:PassRole 제한).
-  - 프리/포스트 검증: `cdk diff` 요약 코멘트, 헬스체크 Lambda 호출.
-- 산출물/수용 기준
-  - main/develop 병합 시 자동 배포, 실패 시 알림 및 롤백 가이드.
+### 단계 3.1 CI/CD 자동화(추가, 보류)
+- 비고: 본 항목은 단계 7의 "CI/CD 재정의"에 흡수/대체된다(단순화 이후 파이프라인 기준 재설계).
 
-### 단계 4. CDK 기반 최소 인프라(dev) 배포 (우선순위 3, 1.5~2주)
+### 단계 4. 단순화 작업(우선순위 3, 1~1.5주)
+- 목표: Lambda-first + SPA 전환의 토대를 마련하고, 이중 어댑터/동기 경로/서버 업로드를 제거한다.
+- 작업
+  - Next.js API 라우트 제거 계획 수립 및 단계적 비활성화: 모든 서버 기능은 `services/api/src/lambda/*` 경유.
+  - 로컬 HTTP 게이트웨이 추가: `services/api/src/local-http.ts`에서 Lambda 핸들러를 HTTP로 마운트(Express/Hono). 프론트/테스트가 동일 엔드포인트 사용.
+  - 업로드 경로 단일화: 프리사인드 POST만 허용(Presign 정책/검증 통합), 서버사이드 업로드 분기 삭제.
+  - 요약 동기 경로 제거: `SUMMARIZE_ASYNC=true` 고정, 동기 핸들러는 테스트 유틸/제거 중 선택.
+  - 계약/검증 통합: `@echo-ai/api-core`에 zod 스키마 추가, 에러 규약(401/403/404/409/422) 표준화.
+  - 목록/검색 정합성: `documents.list`의 q/sortKey/sortDir/cursor 완성 및 테스트.
+  - 로컬 파리티: LocalStack 공개 엔드포인트(s3PublicEndpoint) 사용, 프리사인드 업로드 브라우저 동작 보장.
+  - UI 전환 스캐폴드: `apps/spa` 초기화(로그인/업로드/목록/상세/요약 트리거), `.env`의 `VITE_API_BASE_URL`로 API GW/로컬 게이트웨이 분기.
+  - Docker Compose 정리: Next.js 앱 서비스 제거, `api-local`(로컬 HTTP 게이트웨이) + `ai-processor` + LocalStack + DynamoDB Local 유지.
+- 산출물/수용 기준
+  - 프런트가 로컬 HTTP 게이트웨이를 통해 모든 API 플로우를 수행(Next 라우트 의존 제거).
+  - 업로드는 프리사인드 POST만 사용, 요약은 202 큐잉이 기본.
+  - 계약 테스트가 로컬 게이트웨이 대상으로 통과.
+  - 상세 계획서는 `docs/architecture/step-04-simplification-plan.md` 참조.
+
+### 단계 5. CDK 기반 최소 인프라(dev) 배포 (우선순위 4, 1.5~2주)
 - 목표: 개발 환경에서 서버리스 리소스 프로비저닝 및 Summarizer/기본 API 배포 자동화.
 - 작업
   - 스택 구성: `echoai-shared`(문서 S3, 태깅), `echoai-api`(DynamoDB with EmailIndex, SQS+DLQ, Summarizer Lambda, API GW 스켈레톤, IAM, Log/메트릭), 선택 `echoai-ops`(알람/대시보드).
@@ -70,7 +81,7 @@
   - `cdk synth/diff/deploy`로 무중단 배포 가능, 리소스가 정상 생성되고 기본 헬스체크 통과.
   - Summarizer Lambda가 SQS 이벤트로 동작(CloudWatch에서 확인).
 
-### 단계 5. Secrets Manager 통합 (우선순위 4, 0.5~1주)
+### 단계 6. Secrets Manager 통합 (우선순위 5, 0.5~1주)
 - 목표: `.env` 의존 제거, 런타임 비밀을 Secrets Manager에서 주입/조회.
 - 작업
   - Secret 네이밍(`echoai/{stage}/gemini/api-key` 등) 생성 및 CDK로 관리.
@@ -80,17 +91,19 @@
   - 프로덕션/스테이징 Lambda가 Secrets Manager에서 키를 읽어 성공적으로 요약 수행.
   - `.env` 내 민감정보 제거 및 문서화 업데이트.
 
-### 단계 6. CI/CD 초기 파이프라인 (우선순위 5, 1~1.5주)
-- 목표: 브랜치 병합 시 자동 빌드/배포 및 UI-only 분기 구현.
+### 단계 7. CI/CD 재정의 (우선순위 6, 1~1.5주)
+- 목표: 단순화된 아키텍처(SPA + Lambda-first)를 기준으로 UI-only/백엔드 배포를 분리하고 자동화한다.
 - 작업
-  - GitHub OIDC → `EchoPipelineRole` 연결, `cdk synth/diff/deploy` 워크플로 추가.
-  - 변경 감지: UI 전용 변경 시 S3 업로드+CloudFront 무효화, 백엔드 변경 시 스택 배포.
-  - Lint/Test/빌드 캐시 최적화.
+  - 경로 기반 분기: UI(`apps/spa/**`), 백엔드(`services/api/**`, `services/ai-processor/**`, `packages/**`, `infra/**`).
+  - UI Job: Lint/Test → Build → S3 업로드(버킷·프리픽스 분리) → CloudFront 무효화.
+  - 백엔드 Job: Lint/Test → Lambda 번들(esbuild/tsup) → CDK synth/diff → Deploy(`cdk deploy --require-approval=never`).
+  - 권한: GitHub OIDC → `EchoPipelineRole`(CloudFormation deploy, S3 put, CloudFront create-invalidation, iam:PassRole 최소화).
+  - 가드레일: `cdk diff` 요약을 PR 코멘트로 게시, 배포 실패 시 자동 알림과 롤백 가이드 제공.
 - 산출물/수용 기준
-  - `develop` 병합 → dev 계정 배포 성공, UI-only 변경 시 빠른 정적 배포 경로 동작.
-  - 실패 시 알림 및 롤백 지침 포함.
+  - `develop` 병합 시 dev 배포, `master` 병합 시 prod 배포가 안정적으로 수행.
+  - UI-only 변경은 백엔드 스택 배포 없이 빠르게 반영.
 
-### 단계 7. 검증·성능·보안 하드닝 및 운영 전환 (우선순위 6, 1.5~2주)
+### 단계 8. 검증·성능·보안 하드닝 및 운영 전환 (우선순위 7, 1.5~2주)
 - 목표: SLA(p95 20초), 보안/IAM 검토, 관측성, 운영 절차를 완비하여 프로덕션 전환 준비.
 - 작업
   - 통합 테스트: 인증→업로드→요약→조회 E2E, 에러/경계 케이스.
@@ -119,9 +132,9 @@
 | 역할 | 주요 책임 | 예상 투입 |
 | --- | --- | --- |
 | 아키텍트/리드 | 설계 확정, 인프라 코드 표준, 일정 관리 | 전체 기간 |
-| 백엔드 개발자 | Lambda 구현, 패키지 정비, DynamoDB/SQS 연동 | 단계 2~6 |
-| 프런트엔드 개발자 | UI 정적 빌드 최적화, CloudFront 배포 검증 | 단계 3~6 |
-| DevOps 엔지니어 | CI/CD, Secrets/IAM 설정, 모니터링 구축 | 단계 4~6 |
+| 백엔드 개발자 | Lambda 구현, 패키지 정비, DynamoDB/SQS 연동 | 단계 2~7 |
+| 프런트엔드 개발자 | UI 정적 빌드 최적화, CloudFront 배포 검증 | 단계 4~7 |
+| DevOps 엔지니어 | CI/CD, Secrets/IAM 설정, 모니터링 구축 | 단계 5~7 |
 
 ## 7. 완료 기준
 - `todo-system.md`에 정의된 토폴로지 요소가 프로덕션 환경에서 운영 중이다.
