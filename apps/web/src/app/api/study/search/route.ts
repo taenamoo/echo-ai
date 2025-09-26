@@ -36,7 +36,7 @@ async function callAiSearchModel(context: string, query: string): Promise<string
   try {
     // [기능: AI 모델 선택]
     // "gemini-1.5-flash" 모델은 빠른 응답 속도와 우수한 성능을 균형 있게 제공하여 대화형 검색 기능에 적합합니다.
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: process.env.SUMMARIZE_MODEL ?? "gemini-1.5-flash" });
     const hasContent = context && context.trim() !== '';
 
     // [기능: 프롬프트 엔지니어링 (Prompt Engineering)]
