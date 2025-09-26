@@ -60,12 +60,16 @@ export class EchoAiApiStack extends cdk.Stack {
       architecture: lambda.Architecture.X86_64,
       memorySize: 512,
       timeout: cdk.Duration.seconds(20),
-      bundling: { minify: true, externalModules: [] },
+      bundling: { minify: true, externalModules: [], tsconfig: 'tsconfig.base.json' },
       environment: {
         APP_STAGE: stage,
         AWS_REGION: this.region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
         SUMMARIZE_SQS_QUEUE_URL: summarizeQueue.queueUrl,
+        // TODO: replace with Secrets Manager runtime fetch in step 6
+        JWT_SECRET: 'CHANGE_ME',
+        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
+        SUMMARIZE_USE_MOCK: 'true',
       },
     };
 
@@ -220,17 +224,21 @@ export class EchoAiApiStack extends cdk.Stack {
       architecture: lambda.Architecture.X86_64,
       memorySize: 768,
       timeout: cdk.Duration.seconds(60),
-      bundling: { minify: true },
+      bundling: { minify: true, tsconfig: 'tsconfig.base.json' },
       environment: {
         APP_STAGE: stage,
         AWS_REGION: this.region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
+        JWT_SECRET: 'CHANGE_ME',
+        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
+        SUMMARIZE_USE_MOCK: 'true',
       },
     });
     aiProcessor.addEventSource(new lambdaEventSources.SqsEventSource(summarizeQueue, { batchSize: 5 }));
 
     documentsBucket.grantRead(aiProcessor);
     mainTable.grantReadWriteData(aiProcessor);
+    summarizeQueue.grantSendMessages(documents.summarize);
 
     // Outputs
     new cdk.CfnOutput(this, 'ApiEndpoint', { value: api.url });
@@ -238,4 +246,3 @@ export class EchoAiApiStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'SummarizeQueueUrl', { value: summarizeQueue.queueUrl });
   }
 }
-
