@@ -49,8 +49,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
+# Default: ignore all .env* files, but allow the shared template .env.local to be tracked
 .env*
+!.env.local
 
 # vercel
 .vercel
