@@ -71,6 +71,7 @@
   - Lint/Test → Build → S3 업로드 → CloudFront 무효화。
 - API/Infra Job
   - Lint/Test → Bundle → `cdk synth/diff` → `cdk deploy --require-approval=never`。
+  - 계약 테스트(선택): `TEST_TOKEN`이 설정된 경우 `pnpm test:contracts` 실행하여 계약 정합성 확인。
 - 권한
   - GitHub OIDC → IAM Role Assume。권한 최소화(CloudFormation, S3 put, CloudFront invalidation, iam:PassRole 제한)。
 

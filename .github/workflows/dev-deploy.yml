@@ -88,6 +88,10 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install infra deps
         run: pnpm -C infra install --frozen-lockfile
+      - name: Run contract tests (optional)
+        run: pnpm test:contracts
+        env:
+          TEST_TOKEN: ${{ secrets.DEV_TEST_TOKEN }}
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
