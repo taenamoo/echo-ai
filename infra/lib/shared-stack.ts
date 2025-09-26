@@ -6,6 +6,7 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 
 export class EchoAiSharedStack extends cdk.Stack {
   public readonly uiBucketName: string;
+  public readonly uiCloudFrontDomainName: string;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -40,9 +41,9 @@ export class EchoAiSharedStack extends cdk.Stack {
     cfnDist.addPropertyOverride('DistributionConfig.Origins.0.OriginAccessControlId', oac.originAccessControlId);
 
     this.uiBucketName = uiBucket.bucketName;
+    this.uiCloudFrontDomainName = dist.distributionDomainName;
 
     new cdk.CfnOutput(this, 'UiBucketName', { value: uiBucket.bucketName });
     new cdk.CfnOutput(this, 'UiCloudFrontDomain', { value: dist.distributionDomainName });
   }
 }
-

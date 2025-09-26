@@ -25,6 +25,7 @@
 - API Gateway
   - 경로 매핑: `/auth/*`, `/me`, `/documents`(GET/POST), `/documents/presign`(POST), `/documents/{id}`(GET/DELETE), `/documents/{id}/summarize`(POST), `/study`(GET/POST/PUT/DELETE), `/study/quiz`, `/study/search`, `/study/analyze`。
   - CORS: Origin(CloudFront 도메인, 로컬 개발 `http://localhost:5173`), Headers(`authorization,content-type`), Methods(`GET,POST,PUT,DELETE,OPTIONS`).
+    - CDK에서 `ALLOWED_ORIGINS`(쉼표구분) 환경변수로 오버라이드 가능. 기본은 `https://<CF도메인>, http://localhost:5173`.
 - Lambda 함수
   - 소스: `services/api/src/lambda/*`(Auth/Documents/Presign/Study), `services/ai-processor/src/handler.ts`(SQS 트리거)。
   - 런타임: Node.js 20.x, 아키텍처: x86_64。번들: esbuild/tsup(외부 의존 포함) 또는 Lambda Layer로 공유 모듈 최소화。

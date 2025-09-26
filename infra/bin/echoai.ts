@@ -18,5 +18,5 @@ new EchoAiApiStack(app, `EchoAi-Api-${stage}`, {
   env,
   description: 'Echo AI API Stack (API GW, Lambda, DynamoDB, SQS)',
   uiBucket: shared.uiBucketName,
+  uiCloudFrontDomain: shared.uiCloudFrontDomainName,
 });
-

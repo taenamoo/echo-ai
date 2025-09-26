@@ -10,6 +10,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 
 export interface EchoAiApiStackProps extends cdk.StackProps {
   uiBucket: string;
+  uiCloudFrontDomain?: string;
 }
 
 export class EchoAiApiStack extends cdk.Stack {
@@ -181,10 +182,18 @@ export class EchoAiApiStack extends cdk.Stack {
     });
 
     // API Gateway (REST)
+    // CORS origins: prefer env ALLOWED_ORIGINS, else include CF domain and localhost
+    const allowedOriginsStr = process.env.ALLOWED_ORIGINS || '';
+    const defaultOrigins = ['http://localhost:5173'];
+    if (props.uiCloudFrontDomain) defaultOrigins.push(`https://${props.uiCloudFrontDomain}`);
+    const allowOrigins = (allowedOriginsStr
+      ? allowedOriginsStr.split(',').map((s) => s.trim()).filter(Boolean)
+      : defaultOrigins) as string[];
+
     const api = new apigw.RestApi(this, 'EchoApi', {
       restApiName: `echoai-${stage}`,
       defaultCorsPreflightOptions: {
-        allowOrigins: apigw.Cors.ALL_ORIGINS,
+        allowOrigins,
         allowHeaders: ['authorization', 'content-type'],
         allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       },
