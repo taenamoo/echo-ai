@@ -8,6 +8,7 @@ import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cw from 'aws-cdk-lib/aws-cloudwatch';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
 export interface EchoAiApiStackProps extends cdk.StackProps {
   uiBucket: string;
@@ -69,6 +70,20 @@ export class EchoAiApiStack extends cdk.Stack {
       visibilityTimeout: cdk.Duration.seconds(60),
     });
 
+    // Secrets Manager (dev placeholder) — step 6 will switch Lambdas to fetch at runtime
+    const secret = new secretsmanager.Secret(this, 'AppSecret', {
+      secretName: `echoai/${stage}/app`,
+      description: 'Echo AI app runtime secrets (JWT, Gemini, etc.)',
+      generateSecretString: {
+        secretStringTemplate: JSON.stringify({
+          JWT_SECRET: 'CHANGE_ME',
+          GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
+          SUMMARIZE_PROVIDER: 'gemini'
+        }),
+        generateStringKey: 'placeholder',
+      },
+    });
+
     // Lambda bundling options
     const nodejsFnDefaults: Partial<nodejs.NodejsFunctionProps> = {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -85,6 +100,8 @@ export class EchoAiApiStack extends cdk.Stack {
         JWT_SECRET: 'CHANGE_ME',
         GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
         SUMMARIZE_USE_MOCK: 'true',
+        SECRETS_NAME: secret.secretName,
+        SECRETS_ARN: secret.secretArn,
       },
     };
 
@@ -255,6 +272,8 @@ export class EchoAiApiStack extends cdk.Stack {
         JWT_SECRET: 'CHANGE_ME',
         GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
         SUMMARIZE_USE_MOCK: 'true',
+        SECRETS_NAME: secret.secretName,
+        SECRETS_ARN: secret.secretArn,
       },
     });
     aiProcessor.addEventSource(new lambdaEventSources.SqsEventSource(summarizeQueue, { batchSize: 5 }));
@@ -264,9 +283,19 @@ export class EchoAiApiStack extends cdk.Stack {
     summarizeQueue.grantSendMessages(documents.summarize);
 
     // Outputs
+    // allow Lambdas to read secret (runtime integration to be implemented in step 6)
+    secret.grantRead(auth.signup);
+    secret.grantRead(auth.login);
+    secret.grantRead(auth.me);
+    secret.grantRead(presign);
+    Object.values(documents).forEach(fn => secret.grantRead(fn));
+    Object.values(study).forEach(fn => secret.grantRead(fn));
+    secret.grantRead(aiProcessor);
+
     new cdk.CfnOutput(this, 'ApiEndpoint', { value: api.url });
     new cdk.CfnOutput(this, 'DocumentsBucketName', { value: documentsBucket.bucketName });
     new cdk.CfnOutput(this, 'SummarizeQueueUrl', { value: summarizeQueue.queueUrl });
+    new cdk.CfnOutput(this, 'SecretsArn', { value: secret.secretArn });
 
     // -------- CloudWatch basic alarms (dev) --------
     const sqsAgeMetric = summarizeQueue.metricApproximateAgeOfOldestMessage({ period: cdk.Duration.minutes(5), statistic: 'Maximum' });
