@@ -7,6 +7,7 @@
     "cdk": "./node_modules/.bin/cdk"
   },
   "scripts": {
+    "bootstrap": "cdk bootstrap",
     "build": "tsc -p tsconfig.json",
     "watch": "tsc -w -p tsconfig.json",
     "synth": "cdk synth",
