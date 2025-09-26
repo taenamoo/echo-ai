@@ -3,7 +3,7 @@ import { dynamoDbDocumentClient, STUDY_TABLE_NAME } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, DeleteCommand, QueryCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { verifyTokenDetailed } from '@echo-ai/auth';
 import { GoogleGenerativeAI, SchemaType, type GenerationConfig } from '@google/generative-ai';
-import { getConfig } from '@echo-ai/config';
+import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
 
 function bearer(headers: Record<string, string | undefined>): string | null {
   const a = headers['authorization'] || headers['Authorization'];
@@ -107,6 +107,7 @@ export const remove: APIGatewayProxyHandlerV2 = async (event) => {
 export const quiz: APIGatewayProxyHandlerV2 = async (event) => {
   const userId = authUserId(event.headers as any);
   if (!userId) return json(401, { message: '인증이 필요합니다.' });
+  await hydrateConfigFromSecrets();
   const body = event.body ? JSON.parse(event.body) : {};
   const content = body?.content;
   const count = Number(body?.count || 5);
@@ -148,6 +149,7 @@ export const search: APIGatewayProxyHandlerV2 = async (event) => {
   const userId = authUserId(event.headers as any);
   if (!userId) return json(401, { message: '인증이 필요합니다.' });
   try {
+    await hydrateConfigFromSecrets();
     const body = event.body ? JSON.parse(event.body) : {};
     const term: string = String(body?.searchTerm || '').trim();
     if (!term) return json(400, { message: 'searchTerm은 필수입니다.' });
@@ -167,6 +169,7 @@ export const analyze: APIGatewayProxyHandlerV2 = async (event) => {
   const userId = authUserId(event.headers as any);
   if (!userId) return json(401, { message: '인증이 필요합니다.' });
   try {
+    await hydrateConfigFromSecrets();
     const body = event.body ? JSON.parse(event.body) : {};
     const content: string = String(body?.content || '');
     const good: string = String(body?.good_example || '');

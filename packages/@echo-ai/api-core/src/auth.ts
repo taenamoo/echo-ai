@@ -3,10 +3,12 @@ import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { comparePassword, generateAccessToken, verifyTokenDetailed } from '@echo-ai/auth';
 import { LoginSchema, SignupSchema } from './schemas';
+import { hydrateConfigFromSecrets } from '@echo-ai/config';
 import { ok, badRequest, unauthorized, conflict, serverError, json } from './http';
 
 export async function loginHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const parsed = req.body ? safeJson<unknown>(req.body) : null;
     const result = LoginSchema.safeParse(parsed);
     if (!result.success) return badRequest('이메일과 비밀번호를 입력해주세요.', { issues: result.error.issues }, 'VALIDATION_ERROR');
@@ -35,6 +37,7 @@ export async function loginHandler(req: NormalizedRequest): Promise<NormalizedRe
 
 export async function signupHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const parsed = req.body ? safeJson<unknown>(req.body) : null;
     const checkInput = SignupSchema.safeParse(parsed);
     if (!checkInput.success) return badRequest('이메일과 비밀번호를 입력해주세요.', { issues: checkInput.error.issues }, 'VALIDATION_ERROR');
@@ -77,6 +80,7 @@ export async function signupHandler(req: NormalizedRequest): Promise<NormalizedR
 
 export async function meHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const token = getAuthToken(req.headers);
     if (!token) return unauthorized('인증 토큰이 없습니다.');
     const res = verifyTokenDetailed(token);

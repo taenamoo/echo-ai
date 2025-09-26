@@ -18,6 +18,37 @@ export type AppConfig = {
 };
 
 let cachedConfig: AppConfig | null = null;
+let hydrated = false;
+
+/**
+ * Hydrate process.env from Secrets Manager once (best-effort).
+ * Looks for `SECRETS_ARN` or `SECRETS_NAME` and attempts to fetch JSON secret.
+ * Populates known keys if they are not already set in env.
+ */
+export async function hydrateConfigFromSecrets(env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  if (hydrated) return;
+  const secretId = env.SECRETS_ARN || env.SECRETS_NAME;
+  if (!secretId) { hydrated = true; return; }
+  try {
+    const { SecretsManagerClient, GetSecretValueCommand } = await import('@aws-sdk/client-secrets-manager');
+    const client = new SecretsManagerClient({ region: env.AWS_REGION || env.AWS_DEFAULT_REGION || 'ap-northeast-2' });
+    const res = await client.send(new GetSecretValueCommand({ SecretId: secretId }));
+    const raw = res.SecretString || (res.SecretBinary ? Buffer.from(res.SecretBinary as any).toString('utf8') : null);
+    if (raw) {
+      const json = JSON.parse(raw);
+      const keys = ['JWT_SECRET', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'HASH_SALT', 'SUMMARIZE_PROVIDER'] as const;
+      for (const k of keys) {
+        if (!env[k] && json[k]) env[k] = String(json[k]);
+      }
+    }
+  } catch {
+    // ignore secret fetch errors in dev; fallback to env
+  } finally {
+    hydrated = true;
+    // reset cached config to allow rebuild with secret values
+    cachedConfig = null;
+  }
+}
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   if (cachedConfig) {

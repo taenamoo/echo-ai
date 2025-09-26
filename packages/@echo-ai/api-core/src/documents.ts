@@ -5,7 +5,7 @@ import { ListObjectsV2Command, DeleteObjectsCommand, GetObjectCommand } from '@a
 import { verifyTokenDetailed } from '@echo-ai/auth';
 import type { DocumentItem } from '@echo-ai/core-domain';
 import { enqueueSummarizeJob } from '@echo-ai/documents';
-import { getConfig } from '@echo-ai/config';
+import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
 import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
 import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 import { DocumentCreateSchema, DocumentListQuerySchema } from './schemas';
@@ -268,6 +268,7 @@ async function setStatus(userId: string, documentId: string, status: string) {
 }
 
 async function generateSummary(raw: string): Promise<string> {
+  await hydrateConfigFromSecrets();
   const cfg = getConfig();
   const modelName = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
   const timeoutMs = Number(process.env.SUMMARIZE_TIMEOUT_MS || 30000);
