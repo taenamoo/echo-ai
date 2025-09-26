@@ -1,4 +1,4 @@
-import jwt, { type JwtPayload, TokenExpiredError } from 'jsonwebtoken';
+import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { getConfig } from '@echo-ai/config';
 
 type SignOptions = {
@@ -38,7 +38,9 @@ export function verifyTokenDetailed(token: string): VerifyTokenResult {
     const decoded = jwt.verify(token, getSecret());
     return { ok: true, payload: decoded };
   } catch (error) {
-    if (error instanceof TokenExpiredError) {
+    // jsonwebtoken is a CJS module; in ESM, named TokenExpiredError import may not be available.
+    // Compare by name to avoid import issues across module systems.
+    if ((error as any)?.name === 'TokenExpiredError') {
       return { ok: false, reason: 'expired' };
     }
     return { ok: false, reason: 'invalid' };
