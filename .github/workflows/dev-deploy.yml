@@ -45,24 +45,28 @@ jobs:
           version: 9
       - name: Install deps
         run: pnpm install --frozen-lockfile
-      - name: Build SPA
-        run: pnpm --filter @echo-ai/app-spa build
-        env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL_DEV }}
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
           aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: Read Stack Outputs (API/Shared)
+        run: |
+          API_URL=$(aws cloudformation describe-stacks --stack-name EchoAi-Api-develop --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+          UI_BUCKET=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" --output text)
+          CF_ID=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDistributionId'].OutputValue" --output text)
+          echo "VITE_API_BASE_URL=$API_URL" >> $GITHUB_ENV
+          echo "UI_BUCKET=$UI_BUCKET" >> $GITHUB_ENV
+          echo "CF_DISTRIBUTION_ID=$CF_ID" >> $GITHUB_ENV
+      - name: Build SPA
+        run: pnpm --filter @echo-ai/app-spa build
+        env:
+          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
       - name: Upload to S3
         run: aws s3 sync apps/spa/dist s3://$UI_BUCKET --delete
-        env:
-          UI_BUCKET: ${{ vars.UI_BUCKET_DEV }}
       - name: CloudFront Invalidate
-        if: vars.CF_DISTRIBUTION_ID_DEV != ''
-        run: aws cloudfront create-invalidation --distribution-id $CF --paths '/*'
-        env:
-          CF: ${{ vars.CF_DISTRIBUTION_ID_DEV }}
+        if: env.CF_DISTRIBUTION_ID != ''
+        run: aws cloudfront create-invalidation --distribution-id $CF_DISTRIBUTION_ID --paths '/*'
 
   api:
     name: API + Infra Deploy (CDK)
@@ -97,4 +101,3 @@ jobs:
         run: pnpm -C infra run deploy
         env:
           APP_STAGE: develop
-

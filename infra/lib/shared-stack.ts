@@ -45,5 +45,6 @@ export class EchoAiSharedStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'UiBucketName', { value: uiBucket.bucketName });
     new cdk.CfnOutput(this, 'UiCloudFrontDomain', { value: dist.distributionDomainName });
+    new cdk.CfnOutput(this, 'UiCloudFrontDistributionId', { value: dist.distributionId });
   }
 }
