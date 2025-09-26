@@ -7,6 +7,7 @@ import * as nodejs from '@aws-cdk/aws-lambda-nodejs-alpha';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 
 export interface EchoAiApiStackProps extends cdk.StackProps {
   uiBucket: string;
@@ -266,5 +267,38 @@ export class EchoAiApiStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ApiEndpoint', { value: api.url });
     new cdk.CfnOutput(this, 'DocumentsBucketName', { value: documentsBucket.bucketName });
     new cdk.CfnOutput(this, 'SummarizeQueueUrl', { value: summarizeQueue.queueUrl });
+
+    // -------- CloudWatch basic alarms (dev) --------
+    const sqsAgeMetric = summarizeQueue.metricApproximateAgeOfOldestMessage({ period: cdk.Duration.minutes(5), statistic: 'Maximum' });
+    const sqsAgeAlarm = new cw.Alarm(this, 'SummarizeQueueAgeAlarm', {
+      metric: sqsAgeMetric,
+      threshold: 60, // seconds
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_THRESHOLD,
+      alarmDescription: 'SQS summarize queue oldest message age > 60s',
+    });
+
+    const aiErrorsMetric = aiProcessor.metricErrors({ period: cdk.Duration.minutes(5), statistic: 'Sum' });
+    const aiErrorsAlarm = new cw.Alarm(this, 'AiProcessorErrorsAlarm', {
+      metric: aiErrorsMetric,
+      threshold: 1,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'AI Processor Lambda errors detected',
+    });
+
+    const api5xxMetric = api.metricServerError({ period: cdk.Duration.minutes(5), statistic: 'Sum' });
+    const api5xxAlarm = new cw.Alarm(this, 'Api5xxAlarm', {
+      metric: api5xxMetric,
+      threshold: 1,
+      evaluationPeriods: 1,
+      datapointsToAlarm: 1,
+      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      alarmDescription: 'API Gateway 5xx errors detected',
+    });
+
+    new cdk.CfnOutput(this, 'AlarmNames', { value: [sqsAgeAlarm.alarmName, aiErrorsAlarm.alarmName, api5xxAlarm.alarmName].join(',') });
   }
 }

@@ -87,6 +87,7 @@
 - 초기 배포: `step-65-initial-dev-deployment.md` 절차로 dev 스택 배포。
 - 헬스체크: `/me`(401/200), `/documents`(GET 401/200), presign → 업로드 → 메타 저장 → summarize(202) → 워커 완료까지 확인。
 - 모니터링/알람: Lambda 에러율, API Gateway 5xx, SQS 적체(ApproximateAgeOfOldestMessage) 알람 구성。
+  - CDK 기본 알람 구성: SQS 큐 적체(>60s), AI Processor Errors(>=1), API Gateway 5xx(>=1)
 - 로그 보존: `step-59-log-collection-retention.md` 기준으로 보존 기간 설정。
 
 ## 9) 남은 과제(병행)

@@ -42,6 +42,12 @@
   - `auth.ts`, `documents.ts`, `presign.ts` 리팩터링
   - SPA `ApiError` 도입 및 오류 메시지 개선
 
+## 2.1) 모니터링/알람(기본)
+- CDK에 기본 알람 추가(Dev)
+  - SQS 큐 적체: ApproximateAgeOfOldestMessage > 60초(5분 윈도)
+  - AI Processor Lambda Errors ≥ 1(5분)
+  - API Gateway 5xx ≥ 1(5분)
+
 ## 2) 스택 출력과 파이프라인 변수 연계
 - Shared 스택(Output)
   - UiBucketName, UiCloudFrontDomain, UiCloudFrontDistributionId
