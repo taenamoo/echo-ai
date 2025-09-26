@@ -49,6 +49,19 @@ export class EchoAiApiStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
+    // Allow browser presigned uploads from allowed origins
+    documentsBucket.addCorsRule({
+      allowedOrigins: allowOrigins,
+      allowedMethods: [
+        s3.HttpMethods.POST,
+        s3.HttpMethods.PUT,
+        s3.HttpMethods.GET,
+      ],
+      allowedHeaders: ['*'],
+      exposedHeaders: ['ETag'],
+      maxAge: 3600,
+    });
+
     // SQS queue for summarization
     const summarizeQueue = new sqs.Queue(this, 'SummarizeQueue', {
       queueName: 'echoai-summarize-queue',

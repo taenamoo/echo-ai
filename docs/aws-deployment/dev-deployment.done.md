@@ -13,11 +13,11 @@
     - `infra/lib/shared-stack.ts`
     - UI 버킷(S3) + CloudFront 배포 + OAC 연결
     - 출력: `UiBucketName`, `UiCloudFrontDomain`, `UiCloudFrontDistributionId`
-  - API 스택(Api): API Gateway + Lambda + DynamoDB + SQS (+ S3 문서 버킷)
+- API 스택(Api): API Gateway + Lambda + DynamoDB + SQS (+ S3 문서 버킷)
     - `infra/lib/api-stack.ts`
     - DynamoDB: `EchoAI-Main-Table`(PK/SK), `EmailIndex`(GSI), `EchoAi-Studies`(PK= user_id, SK= study_id)
     - SQS: `echoai-summarize-queue`
-    - S3: 문서 버킷(업로드/원문 저장)
+    - S3: 문서 버킷(업로드/원문 저장, 브라우저 업로드 CORS 구성)
     - Lambda(Node 20): Auth/Presign/Documents/Study 핸들러 및 AI Processor(SQS 소비)
     - API Gateway(REST): 경로 매핑(인증/문서/스터디/요약)
     - 권한: Lambda에 DDB R/W, S3 R/W(필요시), SQS Send/Consume
@@ -102,4 +102,3 @@
 - 현재 Lambda 환경 변수에 임시 비밀(JWT/GEMINI)이 하드코딩되어 있어 dev 전용으로만 사용하고, 단계 6에서 Secrets Manager로 전환 필수.
 - CORS 기본값은 CF 도메인/로컬만 허용한다. 다중 도메인 필요 시 `ALLOWED_ORIGINS`로 지정.
 - 비용/보안 상 이유로 dev 외 스테이지에서 `RemovalPolicy.DESTROY` 사용 금지.
-

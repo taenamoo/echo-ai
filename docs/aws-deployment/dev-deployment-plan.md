@@ -39,6 +39,7 @@
 - S3
   - 버킷1(문서): 업로드/원문 저장。프리사인드 POST 사용 정책 구성。
   - 버킷2(UI): SPA 정적 자산 호스팅。CloudFront 오리진 연결。
+  - 문서 버킷 CORS: 브라우저 직접 업로드 허용(allowedOrigins=CF 도메인/로컬, methods=POST/PUT/GET, headers=*)
 - Secrets Manager
   - 비밀: `echoai/develop/app` JSON
     - 키: `JWT_SECRET`, `GEMINI_API_KEY`, `SUMMARIZE_PROVIDER?`, `HASH_SALT?`。
