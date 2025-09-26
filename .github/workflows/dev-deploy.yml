@@ -52,9 +52,11 @@ jobs:
           aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
       - name: Read Stack Outputs (API/Shared)
         run: |
-          API_URL=$(aws cloudformation describe-stacks --stack-name EchoAi-Api-develop --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
-          UI_BUCKET=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" --output text)
-          CF_ID=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDistributionId'].OutputValue" --output text)
+          retry() { n=0; until [ "$n" -ge 6 ]; do "$@" && break; n=$((n+1)); echo "retry $n"; sleep 5; done; }
+          API_URL=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Api-develop --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+          UI_BUCKET=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" --output text)
+          CF_ID=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDistributionId'].OutputValue" --output text)
+          if [ -z "$API_URL" ] || [ -z "$UI_BUCKET" ]; then echo "Failed to read stack outputs"; exit 1; fi
           echo "VITE_API_BASE_URL=$API_URL" >> $GITHUB_ENV
           echo "UI_BUCKET=$UI_BUCKET" >> $GITHUB_ENV
           echo "CF_DISTRIBUTION_ID=$CF_ID" >> $GITHUB_ENV
@@ -97,6 +99,10 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
           aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: Read CF Domain for CORS
+        run: |
+          CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDomain'].OutputValue" --output text)
+          echo "ALLOWED_ORIGINS=https://$CF_DOMAIN,http://localhost:5173" >> $GITHUB_ENV
       - name: CDK Synth
         run: pnpm -C infra run synth
         env:
@@ -105,3 +111,4 @@ jobs:
         run: pnpm -C infra run deploy
         env:
           APP_STAGE: develop
+          ALLOWED_ORIGINS: ${{ env.ALLOWED_ORIGINS }}

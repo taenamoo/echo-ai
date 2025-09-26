@@ -80,7 +80,7 @@
   - [ ] CloudWatch 알람/대시보드(에러율/SQS 적체/지연) 구성
 - CI/CD
   - [ ] 워크플로에 테스트/린트 스텝 추가 및 품질 게이트(선택)
-  - [ ] CloudFormation Outputs 조회 실패 시 핸들링(리트라이/에러 메시지)
+  - [x] CloudFormation Outputs 조회 실패 시 핸들링(리트라이/에러 메시지)
   - [ ] 스택 출력(API URL)을 환경 변수/배포 아티팩트로 노출(추가 Job 간 전달 필요 시)
 - 앱 구성/검증
   - [ ] SPA 환경 구성 검증(`VITE_API_BASE_URL` 실제 API)
