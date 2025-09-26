@@ -1,6 +1,6 @@
 import type { NormalizedRequest, NormalizedResponse } from './types';
 import { verifyTokenDetailed } from '@echo-ai/auth';
-import { getConfig } from '@echo-ai/config';
+import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
 import { S3Client, type S3ClientConfig } from '@aws-sdk/client-s3';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import { v4 as uuidv4 } from 'uuid';
@@ -50,6 +50,7 @@ function buildClient() {
 }
 
 export async function createPresignHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
+  await hydrateConfigFromSecrets();
   const token = bearer(req.headers);
   if (!token) return unauthorized('인증 토큰이 없습니다.');
   const vr = verifyTokenDetailed(token);

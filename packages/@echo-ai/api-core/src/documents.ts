@@ -26,6 +26,7 @@ function getAuth(headers: Record<string, string | undefined>): { ok: true; userI
 
 export async function createDocumentHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -59,6 +60,7 @@ export async function createDocumentHandler(req: NormalizedRequest): Promise<Nor
 
 export async function listDocumentsHandler(req: NormalizedRequest): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -132,6 +134,7 @@ export async function listDocumentsHandler(req: NormalizedRequest): Promise<Norm
 
 export async function getDocumentHandler(req: NormalizedRequest & { params?: Record<string, string> }): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -149,6 +152,7 @@ export async function getDocumentHandler(req: NormalizedRequest & { params?: Rec
 
 export async function deleteDocumentHandler(req: NormalizedRequest & { params?: Record<string, string> }): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -173,6 +177,7 @@ export async function deleteDocumentHandler(req: NormalizedRequest & { params?: 
 
 export async function summarizeDocumentHandler(req: NormalizedRequest & { params?: Record<string, string> }): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
@@ -211,6 +216,7 @@ export async function summarizeDocumentHandler(req: NormalizedRequest & { params
 
 export async function summarizeDocumentSyncHandler(req: NormalizedRequest & { params?: Record<string, string> }): Promise<NormalizedResponse> {
   try {
+    await hydrateConfigFromSecrets();
     const auth = getAuth(req.headers);
     if (!auth.ok) return auth.res;
     const userId = auth.userId;
