@@ -383,7 +383,7 @@ export default function StudyPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('studyNote');
   const [isConceptModalOpen, setIsConceptModalOpen] = useState(false);
   const [conceptInfo, setConceptInfo] = useState({ url: '', title: '' });
-
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set()); // [추가] 펼쳐진 메뉴 ID를 관리하는 상태
 
   // --- 데이터 Fetching ---
   // [React 개념: useEffect]
@@ -414,6 +414,17 @@ export default function StudyPage() {
       };
       const sortedStudies = sortStudies(data);
       setStudies(sortedStudies);
+      
+      // [추가] 데이터 로딩 후 첫 번째 상위 메뉴를 펼침 상태로 설정
+      if (sortedStudies.length > 0) {
+        setExpandedMenus(prev => {
+            // 기존에 펼쳐진 메뉴가 없거나, 새로고침 시 초기 상태일 때만 첫 메뉴를 펼침
+            if (prev.size === 0) {
+                return new Set([sortedStudies[0].study_id]);
+            }
+            return prev; // 이미 사용자가 상호작용한 후에는 상태 유지
+        });
+      }
 
       let studyToSelect: Study | null = null;
       if (studyIdToSelect) {
@@ -453,6 +464,19 @@ export default function StudyPage() {
 
   // --- 이벤트 핸들러 ---
   // [클린 코드] 각 기능에 대한 핸들러 함수를 명확하게 분리하여 코드의 역할을 쉽게 파악할 수 있습니다.
+  
+  // [추가] 메뉴 펼치기/접기 토글 핸들러
+  const handleToggleMenu = (menuId: string) => {
+    setExpandedMenus(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(menuId)) {
+            newSet.delete(menuId);
+        } else {
+            newSet.add(menuId);
+        }
+        return newSet;
+    });
+  };
 
   /** '학습하기' 버튼 클릭 시 컨셉 모달을 여는 핸들러 */
   const handleOpenConceptModal = (url: string, title: string) => {
@@ -495,6 +519,7 @@ export default function StudyPage() {
     setIsQuizModalOpen(true);
     try {
       const { data } = await axios.post('/api/study/quiz', {
+        quizType: 'REACT',
         content: selectedStudy.content,
         count: 3
       }, {
@@ -565,7 +590,7 @@ export default function StudyPage() {
 
         <div className="flex-grow overflow-auto">
           {/* [React 개념: 조건부 렌더링]
-              activeTab 상태에 따라 '스터디 노트' 또는 '학습 로드맵' UI를 선택적으로 렌더링합니다. */}
+               activeTab 상태에 따라 '스터디 노트' 또는 '학습 로드맵' UI를 선택적으로 렌더링합니다. */}
           {activeTab === 'studyNote' && (
             <div className="flex h-full">
               <aside className="w-1/4 min-w-[280px] bg-white p-6 overflow-y-auto border-r border-gray-200">
@@ -576,14 +601,33 @@ export default function StudyPage() {
                   <nav className="space-y-1">
                       {studies.map(mainMenu => (
                       <div key={mainMenu.study_id}>
-                          <div className={`group flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStudy?.study_id === mainMenu.study_id ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'}`} onClick={() => handleSelectStudy(mainMenu)}>
-                              <span className="font-semibold text-sm">{mainMenu.title}</span>
-                              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                  <button onClick={(e) => { e.stopPropagation(); handleAddNew(mainMenu.study_id); }} className="text-sky-500 hover:bg-sky-100 p-1 rounded-full">+</button>
-                                  <button onClick={(e) => { e.stopPropagation(); handleDelete(mainMenu); }} className="text-red-500 hover:bg-red-100 p-1 rounded-full">x</button>
+                        {/* [수정] 상위 메뉴 UI 구조 변경: 화살표 아이콘 추가 */}
+                          <div 
+                              className={`group flex justify-between items-center p-2 rounded-md transition-colors ${selectedStudy?.study_id === mainMenu.study_id ? 'bg-sky-100 text-sky-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                          >
+                              <span className="font-semibold text-sm cursor-pointer flex-grow" onClick={() => handleSelectStudy(mainMenu)}>
+                                  {mainMenu.title}
+                              </span>
+                              <div className="flex items-center">
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 mr-1">
+                                    <button onClick={(e) => { e.stopPropagation(); handleAddNew(mainMenu.study_id); }} className="text-sky-500 hover:bg-sky-100 p-1 rounded-full text-xs font-bold">+</button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(mainMenu); }} className="text-red-500 hover:bg-red-100 p-1 rounded-full text-xs font-bold">x</button>
+                                </div>
+                                {/* [추가] 하위 메뉴가 있을 경우에만 화살표 버튼 렌더링 */}
+                                {mainMenu.children && mainMenu.children.length > 0 && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); handleToggleMenu(mainMenu.study_id); }} 
+                                    className="p-1 rounded-full hover:bg-gray-200"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-500 transition-transform ${expandedMenus.has(mainMenu.study_id) ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </button>
+                                )}
                               </div>
                           </div>
-                          {mainMenu.children && mainMenu.children.length > 0 && (
+                          {/* [수정] expandedMenus 상태에 따라 하위 메뉴 렌더링 여부 결정 */}
+                          {expandedMenus.has(mainMenu.study_id) && mainMenu.children && mainMenu.children.length > 0 && (
                           <div className="ml-4 mt-1 pl-2 border-l-2 border-gray-200 space-y-1">
                               {mainMenu.children.map(subMenu => (
                               <div key={subMenu.study_id} className={`group flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors text-sm ${selectedStudy?.study_id === subMenu.study_id ? 'bg-sky-100 text-sky-700' : 'text-gray-600 hover:bg-gray-100'}`} onClick={() => handleSelectStudy(subMenu)}>
@@ -605,10 +649,10 @@ export default function StudyPage() {
                 {(mode === 'detail' && selectedStudy) ? (
                   <>
                     {/* [신규 기능 & 조건부 렌더링] 
-                        선택된 노트의 상태에 따라 3가지 다른 UI를 보여줍니다.
-                        1. 하위 메뉴가 있는 상위 메뉴
-                        2. 하위 메뉴가 없는 상위 메뉴
-                        3. 하위 메뉴 (상세 내용)
+                         선택된 노트의 상태에 따라 3가지 다른 UI를 보여줍니다.
+                         1. 하위 메뉴가 있는 상위 메뉴
+                         2. 하위 메뉴가 없는 상위 메뉴
+                         3. 하위 메뉴 (상세 내용)
                     */}
                     
                     {/* 조건 1: 하위 메뉴가 있는 상위 메뉴일 경우 */}
@@ -618,7 +662,7 @@ export default function StudyPage() {
                         <p className="text-gray-600 mb-4">학습할 세부 주제를 선택하세요.</p>
                         <div className="space-y-3">
                           {/* [React 개념: 리스트 렌더링] 
-                              children 배열을 map 함수로 순회하여 각 하위 메뉴에 대한 링크를 생성합니다. */}
+                               children 배열을 map 함수로 순회하여 각 하위 메뉴에 대한 링크를 생성합니다. */}
                           {selectedStudy.children.map(child => (
                             <div 
                               key={child.study_id} 

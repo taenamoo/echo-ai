@@ -22,7 +22,7 @@ interface CodePlaygroundProps {
  */
 const CodePlayground: React.FC<CodePlaygroundProps> = ({ onBack }) => {
   return (
-    <div className="p-4 sm:p-6 md:p-8 h-full flex flex-col">
+    <div className="p-4 sm:p-6 md:p-8 h-screen flex flex-col">
       <div className="flex-shrink-0">
         {/* [React 개념: Props와 이벤트 처리]
             부모 컴포넌트로부터 전달받은 onBack 함수를 onClick 이벤트 핸들러로 등록합니다.

@@ -15,8 +15,6 @@ import { requireAuth } from '@/lib/api/auth';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from '@/lib/config';
 
-// --- AI 모델 초기화 ---
-// [클린 코드] AI 모델 클라이언트를 전역 상수로 초기화하여 재사용하고, API 키는 환경 변수에서 안전하게 관리합니다.
 const genAI = new GoogleGenerativeAI(config.geminiApiKey);
 
 /**
@@ -24,16 +22,17 @@ const genAI = new GoogleGenerativeAI(config.geminiApiKey);
  * @description Gemini AI 모델을 호출하여 주어진 프롬프트에 대한 텍스트를 생성하는 헬퍼 함수입니다.
  * @param {string} prompt - AI에게 전달할 구체적인 지침과 내용이 포함된 문자열.
  * @returns {Promise<string>} AI가 생성한 분석 결과 문자열.
- * @rationale
- * [클린 코드] AI 모델과의 통신 로직을 별도의 함수로 분리하면, 메인 핸들러(POST)의 코드가 간결해지고
- * 책임(Authentication, Request Parsing, AI Call)이 명확하게 나뉘어 유지보수성이 향상됩니다.
  */
 async function callAiModel(prompt: string): Promise<string> {
   try {
-    // [기능: AI 모델 선택]
-    // "gemini-1.5-flash" 모델은 빠른 응답 속도와 우수한 성능을 균형 있게 제공하여 실시간 분석 기능에 적합합니다.
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash"});
-    const result = await model.generateContent(prompt);
+    // [오류 수정] 정상적으로 동작하는 quiz API와 동일한 모델("gemini-2.5-flash-preview-05-20")을 사용하도록 수정합니다.
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview-05-20"});
+    
+    // [오류 수정] generateContent 메소드에 올바른 형식의 객체를 전달하도록 수정합니다.
+    const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
+    });
+
     const response = await result.response;
     return response.text();
   } catch (error) {
@@ -51,21 +50,13 @@ async function callAiModel(prompt: string): Promise<string> {
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. [인증] 요청 헤더에서 인증 토큰을 추출하고 유효성을 검사합니다.
     const auth = requireAuth(req);
     if (!auth.ok) return auth.res;
 
-    // 2. [요청 파싱] 클라이언트에서 보낸 분석 대상을 추출합니다.
     const { content, good_example, bad_example } = await req.json();
     const suggestions: string[] = [];
 
-    // 3. [AI 호출] 각 항목(내용, 예시)이 존재할 경우, AI 모델을 호출하여 분석을 요청합니다.
-    
-    // 3-1. '내용'에 대한 분석
     if (content && content.trim() !== '') {
-      // [기능: 프롬프트 엔지니어링]
-      // '내용' 분석을 위한 프롬프트를 설계합니다. AI에게 '코드 리뷰 멘토' 역할을 부여하고,
-      // 핵심 개념 설명과 추가 팁 제공이라는 구체적인 지침을 전달합니다.
       const contentPrompt = `
         당신은 리액트(React) 초보 개발자를 위한 친절한 코드 리뷰 멘토입니다.
         아래 주어진 "내용"을 바탕으로, 초보자가 이해하기 쉽게 핵심을 짚어주는 추가 의견을 작성해주세요.
@@ -80,11 +71,7 @@ export async function POST(req: NextRequest) {
       suggestions.push(`### 내용 분석\n${contentSuggestion}`);
     }
 
-    // 3-2. '좋은 예시'와 '나쁜 예시' 비교 분석
     if (good_example && good_example.trim() !== '' && bad_example && bad_example.trim() !== '') {
-      // [기능: 프롬프트 엔지니어링]
-      // '예시 비교' 분석을 위한 프롬프트를 설계합니다. 두 코드의 장단점을 비교하고,
-      // 개선 방향을 제시하도록 구체적인 지침을 AI에게 전달합니다.
         const examplePrompt = `
           당신은 리액트(React) 초보 개발자를 위한 친절한 코드 리뷰 멘토입니다.
           아래 "좋은 예시"와 "나쁜 예시"를 비교 분석하고, 초보자가 이해하기 쉽게 설명해주세요.
@@ -102,7 +89,6 @@ export async function POST(req: NextRequest) {
         suggestions.push(`### 예시 비교 분석\n${exampleSuggestion}`);
     }
 
-    // 4. [응답] 분석 결과가 없는 경우와 있는 경우를 나누어 클라이언트에 최종 응답을 보냅니다.
     if (suggestions.length === 0) {
         return NextResponse.json({ suggestion: "분석할 내용이나 예시가 부족하여 AI 추가의견을 생성할 수 없습니다." });
     }
@@ -114,3 +100,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'AI 분석 중 오류가 발생했습니다.' }, { status: 500 });
   }
 }
+
