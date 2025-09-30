@@ -20,10 +20,21 @@ export class EchoAiApiStack extends cdk.Stack {
     super(scope, id, props);
 
     const stage = process.env.APP_STAGE || process.env.STAGE || 'develop';
+    const stageId = stage.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const stageSuffix = stageId.length > 0 ? stageId : 'default';
+    const withStage = (base: string) => `${base}-${stageSuffix}`;
+
+    // CORS origins: prefer env ALLOWED_ORIGINS, else include CF domain and localhost
+    const allowedOriginsStr = process.env.ALLOWED_ORIGINS || '';
+    const defaultOrigins = ['http://localhost:5173'];
+    if (props.uiCloudFrontDomain) defaultOrigins.push(`https://${props.uiCloudFrontDomain}`);
+    const allowOrigins = (allowedOriginsStr
+      ? allowedOriginsStr.split(',').map((s) => s.trim()).filter(Boolean)
+      : defaultOrigins) as string[];
 
     // DynamoDB
     const mainTable = new dynamodb.Table(this, 'MainTable', {
-      tableName: 'EchoAI-Main-Table',
+      tableName: withStage('EchoAI-Main-Table'),
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -36,7 +47,7 @@ export class EchoAiApiStack extends cdk.Stack {
     });
 
     const studyTable = new dynamodb.Table(this, 'StudyTable', {
-      tableName: 'EchoAi-Studies',
+      tableName: withStage('EchoAi-Studies'),
       partitionKey: { name: 'user_id', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'study_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -66,19 +77,19 @@ export class EchoAiApiStack extends cdk.Stack {
 
     // SQS queue for summarization
     const summarizeQueue = new sqs.Queue(this, 'SummarizeQueue', {
-      queueName: 'echoai-summarize-queue',
+      queueName: withStage('echoai-summarize-queue'),
       visibilityTimeout: cdk.Duration.seconds(60),
     });
 
-    // Secrets Manager (dev placeholder) — step 6 will switch Lambdas to fetch at runtime
+    // Secrets Manager (runtime source for JWT/Gemini and related secrets)
     const secret = new secretsmanager.Secret(this, 'AppSecret', {
       secretName: `echoai/${stage}/app`,
       description: 'Echo AI app runtime secrets (JWT, Gemini, etc.)',
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
-          JWT_SECRET: 'CHANGE_ME',
-          GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-          SUMMARIZE_PROVIDER: 'gemini'
+          JWT_SECRET: 'development-secret',
+          GEMINI_API_KEY: 'development-gemini-key',
+          SUMMARIZE_PROVIDER: 'gemini',
         }),
         generateStringKey: 'placeholder',
       },
@@ -96,10 +107,9 @@ export class EchoAiApiStack extends cdk.Stack {
         AWS_REGION: this.region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
         SUMMARIZE_SQS_QUEUE_URL: summarizeQueue.queueUrl,
-        // TODO: replace with Secrets Manager runtime fetch in step 6
-        JWT_SECRET: 'CHANGE_ME',
-        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-        SUMMARIZE_USE_MOCK: 'true',
+        JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
+        GEMINI_API_KEY: secret.secretValueFromJson('GEMINI_API_KEY').unsafeUnwrap(),
+        SUMMARIZE_USE_MOCK: stage === 'local' ? 'true' : 'false',
         SECRETS_NAME: secret.secretName,
         SECRETS_ARN: secret.secretArn,
       },
@@ -213,14 +223,6 @@ export class EchoAiApiStack extends cdk.Stack {
     });
 
     // API Gateway (REST)
-    // CORS origins: prefer env ALLOWED_ORIGINS, else include CF domain and localhost
-    const allowedOriginsStr = process.env.ALLOWED_ORIGINS || '';
-    const defaultOrigins = ['http://localhost:5173'];
-    if (props.uiCloudFrontDomain) defaultOrigins.push(`https://${props.uiCloudFrontDomain}`);
-    const allowOrigins = (allowedOriginsStr
-      ? allowedOriginsStr.split(',').map((s) => s.trim()).filter(Boolean)
-      : defaultOrigins) as string[];
-
     const api = new apigw.RestApi(this, 'EchoApi', {
       restApiName: `echoai-${stage}`,
       defaultCorsPreflightOptions: {
@@ -269,9 +271,9 @@ export class EchoAiApiStack extends cdk.Stack {
         APP_STAGE: stage,
         AWS_REGION: this.region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
-        JWT_SECRET: 'CHANGE_ME',
-        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-        SUMMARIZE_USE_MOCK: 'true',
+        JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
+        GEMINI_API_KEY: secret.secretValueFromJson('GEMINI_API_KEY').unsafeUnwrap(),
+        SUMMARIZE_USE_MOCK: stage === 'local' ? 'true' : 'false',
         SECRETS_NAME: secret.secretName,
         SECRETS_ARN: secret.secretArn,
       },

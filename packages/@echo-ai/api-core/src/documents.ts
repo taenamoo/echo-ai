@@ -9,7 +9,7 @@ import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
 import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
 import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 import { DocumentCreateSchema, DocumentListQuerySchema } from './schemas';
-import { ok, created, accepted, badRequest, unauthorized, forbidden, notFound, serverError, zodIssues } from './http';
+import { ok, created, accepted, badRequest, unauthorized, forbidden, notFound, serverError, zodIssues, conflict } from './http';
 
 // Use shared HTTP helpers to unify error format
 
@@ -280,10 +280,12 @@ async function generateSummary(raw: string): Promise<string> {
   const timeoutMs = Number(process.env.SUMMARIZE_TIMEOUT_MS || 30000);
   const maxChars = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
   const maxOutputTokens = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
-  const SUMMARIZE_USE_MOCK = /^true$/i.test(process.env.SUMMARIZE_USE_MOCK || '');
+  const useMock = typeof process.env.SUMMARIZE_USE_MOCK === 'string'
+    ? /^true$/i.test(process.env.SUMMARIZE_USE_MOCK)
+    : cfg.stage === 'local';
 
   const text = raw.length > maxChars ? raw.slice(0, maxChars) : raw;
-  if (SUMMARIZE_USE_MOCK || !cfg.geminiApiKey || cfg.geminiApiKey === 'YOUR_GEMINI_API_KEY') {
+  if (useMock || !cfg.geminiApiKey) {
     const cleaned = text.replace(/\s+/g, ' ').slice(0, 800);
     return `요약(모의): ${cleaned}${cleaned.length === 800 ? '…' : ''}`;
   }

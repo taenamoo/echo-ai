@@ -4,6 +4,7 @@ import { GetCommand, PutCommand, DeleteCommand, QueryCommand, BatchWriteCommand 
 import { verifyTokenDetailed } from '@echo-ai/auth';
 import { GoogleGenerativeAI, SchemaType, type GenerationConfig } from '@google/generative-ai';
 import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
+import { StudyCreateSchema, StudyUpdateSchema } from '@echo-ai/api-core';
 
 function bearer(headers: Record<string, string | undefined>): string | null {
   const a = headers['authorization'] || headers['Authorization'];
@@ -24,6 +25,8 @@ type StudyItem = {
   bad_example?: string | null;
   study_order: number;
   created_at: string;
+  reference_links?: string[];
+  ai_suggestion?: string | null;
 };
 
 function buildHierarchy(items: any[]) {
@@ -55,20 +58,28 @@ export const list: APIGatewayProxyHandlerV2 = async (event) => {
 export const create: APIGatewayProxyHandlerV2 = async (event) => {
   const userId = authUserId(event.headers as any);
   if (!userId) return json(401, { message: '인증이 필요합니다.' });
-  const body = event.body ? JSON.parse(event.body) : {};
-  if (!body?.title || body?.study_order === undefined) return json(400, { message: '제목과 순서는 필수입니다.' });
+  const raw = event.body ? safeJson(event.body) : null;
+  const parsed = StudyCreateSchema.safeParse(raw ?? {});
+  if (!parsed.success) {
+    return json(400, { message: '요청 본문이 올바르지 않습니다.', issues: parsed.error.issues });
+  }
+  const body = parsed.data;
   const { randomUUID } = await import('crypto');
+  const now = new Date().toISOString();
   const item: StudyItem = {
     user_id: userId,
     study_id: randomUUID(),
-    parent_id: body.parent_id || null,
+    parent_id: body.parent_id ?? null,
     title: body.title,
-    content: body.content || null,
-    good_example: body.good_example || null,
-    bad_example: body.bad_example || null,
-    study_order: Number(body.study_order),
-    created_at: new Date().toISOString(),
+    content: body.content ?? null,
+    good_example: body.good_example ?? null,
+    bad_example: body.bad_example ?? null,
+    study_order: body.study_order,
+    created_at: now,
   };
+  if (body.reference_links && body.reference_links.length > 0) {
+    item.reference_links = body.reference_links;
+  }
   await dynamoDbDocumentClient.send(new PutCommand({ TableName: STUDY_TABLE_NAME, Item: item }));
   return json(201, item);
 };
@@ -78,11 +89,30 @@ export const update: APIGatewayProxyHandlerV2 = async (event) => {
   if (!userId) return json(401, { message: '인증이 필요합니다.' });
   const id = event.pathParameters?.id;
   if (!id) return json(400, { message: 'ID가 필요합니다.' });
-  const body = event.body ? JSON.parse(event.body) : {};
-  delete body.children;
+  const raw = event.body ? safeJson(event.body) : null;
+  const parsed = StudyUpdateSchema.safeParse(raw ?? {});
+  if (!parsed.success) {
+    return json(400, { message: '요청 본문이 올바르지 않습니다.', issues: parsed.error.issues });
+  }
+  const body = parsed.data;
   const { Item } = await dynamoDbDocumentClient.send(new GetCommand({ TableName: STUDY_TABLE_NAME, Key: { user_id: userId, study_id: id } }));
   if (!Item) return json(404, { message: '수정할 스터디 노트를 찾을 수 없습니다.' });
-  const updated = { ...Item, ...body };
+  const current = Item as StudyItem & Record<string, any>;
+  const updated: StudyItem & Record<string, any> = {
+    ...current,
+    title: body.title ?? current.title,
+    content: body.content !== undefined ? body.content ?? null : current.content ?? null,
+    good_example: body.good_example !== undefined ? body.good_example ?? null : current.good_example ?? null,
+    bad_example: body.bad_example !== undefined ? body.bad_example ?? null : current.bad_example ?? null,
+    study_order: body.study_order ?? current.study_order,
+    parent_id: body.parent_id !== undefined ? body.parent_id ?? null : current.parent_id ?? null,
+  };
+  if (body.reference_links !== undefined) {
+    updated.reference_links = body.reference_links.length > 0 ? body.reference_links : [];
+  }
+  if (body.ai_suggestion !== undefined) {
+    updated.ai_suggestion = body.ai_suggestion ?? null;
+  }
   await dynamoDbDocumentClient.send(new PutCommand({ TableName: STUDY_TABLE_NAME, Item: updated }));
   return json(200, updated);
 };
@@ -186,3 +216,11 @@ export const analyze: APIGatewayProxyHandlerV2 = async (event) => {
     return json(500, { message: 'AI 분석 처리 중 오류가 발생했습니다.' });
   }
 };
+
+function safeJson<T>(raw: string): T | null {
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}

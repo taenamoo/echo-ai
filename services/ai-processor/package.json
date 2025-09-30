@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"TODO: implement AI processor bundling\"",
+    "build": "tsup --config tsup.config.ts",
     "local": "tsx src/local-runner.ts"
   },
   "dependencies": {

@@ -68,7 +68,7 @@ const AiQuiz: React.FC<AiQuizProps> = ({ onFinish }) => {
       // [오류 수정] API에 전달하는 `content`를 퀴즈 생성 '주제'만 명시하도록 수정합니다.
       // 서버에서 이 주제와 `count`를 조합하여 AI에게 전달할 최종 프롬프트를 생성하게 됩니다.
       // 이렇게 하면 프롬프트가 더 명확해져 AI가 요청을 이해하지 못해 발생하는 서버 오류(500)를 방지할 수 있습니다.
-      const response = await axios.post('/api/study/quiz', {
+      const response = await axios.post('/study/quiz', {
         content: "React 공식 문서의 핵심 개념(JSX, 컴포넌트, Props, State, Hooks, Context API, 라우팅 등)",
         count: 15
       }, {

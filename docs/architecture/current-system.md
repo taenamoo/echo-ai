@@ -14,7 +14,7 @@
 | 프레젠테이션 | Next.js(App Router) + 정적 SPA(Vite) 병행 운영(전환 과도기) | `apps/web/src/app/**`, `apps/spa/**` |
 | 로컬 HTTP 게이트웨이 | API Gateway v2 이벤트 에뮬레이션으로 Lambda 핸들러를 HTTP에 마운트 | `services/api/src/local-http.ts` |
 | Lambda 핸들러 | 인증/문서/프리사인/요약/스터디 기능 구현(단일 소스) | `services/api/src/lambda/*` |
-| API Route(과도기) | Next.js API 라우트에서 일부 기능 위임·비활성화 플래그 적용 | `apps/web/src/app/api/**` |
+| 프런트엔드 HTTP 클라이언트 | Axios 인스턴스가 API Gateway 배포 URL로 직접 호출 | `apps/web/src/lib/axios.ts` |
 | 도메인/계약 | 인증, 문서, 요약 큐잉, AWS 클라이언트, Zod 스키마/검증 | `packages/@echo-ai/{auth,documents,aws-clients,api-core}` |
 | 비동기 워커 | 요약 전용 SQS 컨슈머 Lambda(로컬 실행 가능) | `services/ai-processor` |
 
@@ -29,7 +29,7 @@
 - 파일 스토리지: S3 버킷 + 프리사인드 업로드(브라우저 직접 업로드). 로컬은 LocalStack 공개 엔드포인트 사용.
 - AI 요약: 기본 비동기(SQS → `services/ai-processor`). 동기 경로는 전환 옵션 플래그로만 사용.
 - 인증: `@echo-ai/auth`로 JWT 발급/검증, bcrypt 비밀번호 해시.
-- 구성/비밀: `.env.local` 기반. Secrets Manager 통합은 목표 단계(미적용).
+- 구성/비밀: Secrets Manager를 기본 소스로 사용하며, Lambda/워커는 실행 시 `hydrateConfigFromSecrets`로 비밀을 가져온다. 로컬 개발용 `.env`는 보조 수단으로 유지한다.
 
 ## 4. 데이터 및 요청 흐름
 1) 사용자가 로그인하면 토큰이 발급되고, 프런트는 `Authorization: Bearer`로 호출한다.
@@ -42,20 +42,19 @@
 - 버전 관리: pnpm 모노레포. 패키지/서비스 분리 유지.
 - 로컬 구동: `docker-compose.yml`로 LocalStack/DynamoDB Local/`api-local`/SPA를 함께 실행.
 - CI/CD: 계획 단계. 브랜치·경로 기반 분기는 목표 문서에 정의(실구현 전).
-- IaC: CDK/CFN 가이드만 존재, 실제 스택 템플릿/배포 파이프라인은 미구현.
+- IaC: CDK 스택이 Stage 접미사 규칙과 Lambda 번들 스크립트에 맞춰 정비되었으며, CI/CD 파이프라인은 아직 미구현이다.
 - 모니터링: Next.js 기본 로깅 중심, CloudWatch 연동은 목표 단계에서 구성.
 
 ## 6. 확인된 격차 및 리스크
 - DynamoDB 사용자 프로필 SK가 `PROFILE#<userId>`로 저장되어 스키마 문서의 `PROFILE`(정적 키)와 불일치.
-- Secrets 관리가 `.env`에 의존(프로덕션 요구사항인 Secrets Manager 미적용).
-- Next API 라우트와 Lambda 어댑터가 공존(전환 중). 소스 이원화로 변경 누락 위험.
-- 운영 배포 파이프라인/스택 부재로 로컬 중심 동작(운영 관측/권한/태깅 미정의).
+- Secrets Manager 연동은 적용되었지만, 키 회전 자동화·권한 위임 절차가 미정이라 운영 가이드가 필요하다.
+- 운영 배포 파이프라인/스택, CloudWatch 모니터링, 태깅 전략 등은 후속 작업으로 남아 있다.
 
 ## 7. 구조적 복잡성 요약(전환 중인 지점)
-- 어댑터 이중화: Next API Route(과도기)와 Lambda 핸들러가 공존한다.
+- 프런트엔드 이중 운영: Next.js App Router와 정적 SPA가 병행되어 UX/라우팅 통합이 필요하다.
 - 비동기 기본 전환: 동기/비동기 혼재에서 비동기 기본으로 이동했고, 동기는 옵트인 플래그로만 허용된다.
 - 업로드 경로 수렴: 서버사이드 업로드는 기본 폐기되어 정책 일관성이 개선되었으나, 레거시 호출 차단에 따른 호환성 확인 필요.
-- 환경/비밀 파편화: `.env.local`과 목표인 Secrets Manager 간 단계 간극 존재.
+- 비밀 운영 절차 미정: Secrets 회전·권한 위임 자동화는 후속 과제로 남아 있다.
 
 ## 8. 참고(전환 방향 고정)
 - 목표 구조와 배포 흐름: `docs/architecture/todo-system.md`
