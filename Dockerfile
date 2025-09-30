@@ -21,6 +21,17 @@ RUN apt-get install -y ca-certificates
 ## 3.3. Update CA Certificates
 RUN update-ca-certificates --fresh
 
+## 3.4. Install AWS CLI v2 and AWS CDK v2
+# - AWS CLI v2: official installer (requires curl + unzip)
+# - AWS CDK v2: global npm package for cdk commands
+RUN apt-get update \
+  && apt-get install -y curl unzip \
+  && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" \
+  && unzip -q /tmp/awscliv2.zip -d /tmp \
+  && /tmp/aws/install \
+  && npm install -g aws-cdk@2 \
+  && rm -rf /var/lib/apt/lists/* /tmp/aws /tmp/awscliv2.zip
+
 ## 4. Install Dependencies
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 

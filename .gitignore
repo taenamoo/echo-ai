@@ -31,12 +31,12 @@ gha-creds-*.json
 # testing
 /coverage
 
-# next.js
-/.next/
-/apps/web/.next/
-/out/
-
 # production
+/apps/spa/dist
+/apps/web/.next
+services/ai-processor/dist
+services/api/dist
+infra/dist
 /build
 
 # misc

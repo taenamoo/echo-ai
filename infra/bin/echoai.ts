@@ -8,11 +8,14 @@ const app = new cdk.App();
 
 const stage = process.env.APP_STAGE || process.env.STAGE || 'develop';
 const env = {
-  account: process.env.CDK_DEFAULT_ACCOUNT,
+  account: process.env.CDK_DEFAULT_ACCOUNT || '',
   region: process.env.CDK_DEFAULT_REGION || 'ap-northeast-2',
 };
 
-const shared = new EchoAiSharedStack(app, `EchoAi-Shared-${stage}`, { env, description: 'Echo AI Shared Stack (S3/CloudFront)' });
+const shared = new EchoAiSharedStack(app, `EchoAi-Shared-${stage}`, {
+  env,
+  description: 'Echo AI Shared Stack (S3/CloudFront)',
+});
 
 new EchoAiApiStack(app, `EchoAi-Api-${stage}`, {
   env,

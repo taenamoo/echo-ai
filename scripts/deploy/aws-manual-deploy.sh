@@ -46,6 +46,11 @@ update_secrets_twice=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --)
+      # tolerate pnpm/npm passing a standalone "--" sentinel before args
+      shift 1
+      continue
+      ;;
     --stage)
       stage="$2"
       shift 2
@@ -127,9 +132,16 @@ for cmd in pnpm aws node; do
   fi
 done
 
-if ! pnpm --dir infra exec cdk --version >/dev/null 2>&1; then
-  echo "Installing infra dependencies..."
-  pnpm --dir infra install >/dev/null
+# Always ensure infra deps (ts-node for ESM loader, local cdk, etc.)
+echo "Ensuring infra dependencies..."
+if ! pnpm --dir infra install --prod=false; then
+  echo "Error: pnpm install in infra/ failed. Check network/proxy and registry access." >&2
+  exit 1
+fi
+echo "Building infra CDK app (tsc)..."
+if ! pnpm --dir infra run build; then
+  echo "Error: infra TypeScript build failed. See errors above." >&2
+  exit 1
 fi
 
 if [[ "$skip_build" == false ]]; then
