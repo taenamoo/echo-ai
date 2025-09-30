@@ -3,8 +3,41 @@
 본 문서는 `docs/architecture/current-system.md`, `docs/architecture/todo-system.md`와 `docs/aws-deployment/pre-deployment-gap-analysis-done.md`에 정리된 최신 구조·리스크를 토대로, 현재 레포지토리 상태에서 AWS에 수동 배포를 수행하기 위한 실무 절차를 설명한다. Next.js App Router는 로컬 개발 편의를 위해 유지되지만, 실제 배포 경로는 Vite 기반 SPA + Lambda/API Gateway 조합을 기준으로 한다.
 
 > **자동화 스크립트**
-> 
+>
 > 모든 절차를 한 번에 실행하고 CloudFront 무효화·정적 자산 업로드·선택적 Secrets 갱신까지 수행하려면 `pnpm run deploy:aws -- --stage <stage>`를 실행한다. 필요 시 `--allowed-origins`, `--secrets-file`, `--skip-bootstrap` 등 옵션으로 세부 동작을 제어할 수 있다. 【F:scripts/deploy/aws-manual-deploy.sh†L1-L231】【F:package.json†L7-L21】
+
+### 예시 시나리오: develop Stage 두 단계 배포
+
+1. **사전 준비**
+   - 로컬에 Node.js 20.x, pnpm 10.x, AWS CLI v2, AWS CDK v2를 설치하고 `pnpm install`이 완료되는지 점검한다. 【F:scripts/deploy/aws-manual-deploy.sh†L32-L101】
+   - `tmp/deploy/develop-secrets.json` 같은 위치에 Secrets JSON(`JWT_SECRET`, `GEMINI_API_KEY`, `SUMMARIZE_PROVIDER`)을 작성한다. 【F:scripts/deploy/aws-manual-deploy.sh†L37-L101】
+   - `APP_STAGE=develop`, `ALLOWED_ORIGINS` 후보(`https://develop.example.com,http://localhost:5173`)를 준비한다.
+
+2. **명령 실행**
+   ```bash
+   pnpm run deploy:aws -- \
+     --stage develop \
+     --region ap-northeast-2 \
+     --allowed-origins "https://develop.example.com,http://localhost:5173" \
+     --secrets-file tmp/deploy/develop-secrets.json \
+     --two-phase
+   ```
+
+3. **Phase 1 (백엔드 배포)**
+   - 스크립트가 CDK 부트스트랩을 수행한 뒤 Shared 스택을 배포하고 CloudFront 도메인을 확보한다. 필요 시 CloudFront와 로컬 호스트가 자동으로 허용 도메인에 추가된다. 【F:scripts/deploy/aws-manual-deploy.sh†L107-L196】
+   - 이어서 API 스택을 배포하고 Secrets ARN, API Endpoint 등을 수집한 후 Secrets Manager 값을 갱신한다. 【F:scripts/deploy/aws-manual-deploy.sh†L145-L196】
+   - 콘솔에 출력된 API Endpoint, CloudFront Domain, Secrets ARN을 메모한다.
+
+4. **Phase 1 종료 후 SPA 빌드**
+   - 스크립트가 Phase 1에서 확보한 API Endpoint를 `VITE_API_BASE_URL`로 주입해 SPA를 자동으로 재빌드한다. `--skip-build`를 사용했다면 동일한 값을 수동으로 주입해 빌드한다. 【F:scripts/deploy/aws-manual-deploy.sh†L198-L215】
+
+5. **Phase 2 (UI 업로드)**
+   - SPA 빌드 산출물이 존재하는지 확인한 뒤 S3 버킷으로 동기화하고 CloudFront 캐시를 무효화한다. 【F:scripts/deploy/aws-manual-deploy.sh†L148-L191】【F:scripts/deploy/aws-manual-deploy.sh†L215-L220】
+   - 필요 시 `--update-secrets-twice`를 추가해 Phase 2에서도 Secrets를 다시 갱신할 수 있다. 【F:scripts/deploy/aws-manual-deploy.sh†L21-L24】【F:scripts/deploy/aws-manual-deploy.sh†L215-L220】
+
+6. **후속 점검**
+   - 명령 종료 후 요약된 출력(API Endpoint, CloudFront Domain 등)을 기반으로 `.env.production` 또는 호스팅 환경 변수에 반영한다. 【F:scripts/deploy/aws-manual-deploy.sh†L120-L137】【F:scripts/deploy/aws-manual-deploy.sh†L188-L196】
+   - `docs/aws-deployment/current-deployment-steps.md`의 4~5장 절차에 따라 Secrets, 정적 자산, CloudFront, API 기능을 점검한다.
 
 ## 0. 참고 자료와 현재 상태 점검
 
