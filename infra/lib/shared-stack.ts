@@ -19,16 +19,22 @@ export class EchoAiSharedStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
-    const oac = new cloudfront.OriginAccessControl(this, 'OAC', {
-      originAccessControlName: `${id}-oac`,
-      signingBehavior: cloudfront.OriginAccessControlSigningBehaviors.SIGNING_ENABLED,
-      signingProtocol: cloudfront.OriginAccessControlSigningProtocols.SIGV4,
-      originType: cloudfront.OriginAccessControlOriginTypes.S3,
+    // Use L1 CfnOriginAccessControl for broad CDK compatibility
+    const oac = new cloudfront.CfnOriginAccessControl(this, 'OAC', {
+      originAccessControlConfig: {
+        name: `${id}-oac`,
+        description: 'OAC for S3 UI bucket',
+        originAccessControlOriginType: 's3',
+        signingBehavior: 'always',
+        signingProtocol: 'sigv4',
+      },
     });
 
     const dist = new cloudfront.Distribution(this, 'UiDistribution', {
       defaultBehavior: {
-        origin: new origins.S3Origin(uiBucket, { originAccessIdentity: undefined }),
+        origin: new origins.S3Origin(uiBucket, {
+          originAccessIdentity: undefined,
+        }),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
@@ -38,13 +44,20 @@ export class EchoAiSharedStack extends cdk.Stack {
 
     // Attach OAC (low-level override)
     const cfnDist = dist.node.defaultChild as cloudfront.CfnDistribution;
-    cfnDist.addPropertyOverride('DistributionConfig.Origins.0.OriginAccessControlId', oac.originAccessControlId);
+    cfnDist.addPropertyOverride(
+      'DistributionConfig.Origins.0.OriginAccessControlId',
+      oac.attrId
+    );
 
     this.uiBucketName = uiBucket.bucketName;
     this.uiCloudFrontDomainName = dist.distributionDomainName;
 
     new cdk.CfnOutput(this, 'UiBucketName', { value: uiBucket.bucketName });
-    new cdk.CfnOutput(this, 'UiCloudFrontDomain', { value: dist.distributionDomainName });
-    new cdk.CfnOutput(this, 'UiCloudFrontDistributionId', { value: dist.distributionId });
+    new cdk.CfnOutput(this, 'UiCloudFrontDomain', {
+      value: dist.distributionDomainName,
+    });
+    new cdk.CfnOutput(this, 'UiCloudFrontDistributionId', {
+      value: dist.distributionId,
+    });
   }
 }

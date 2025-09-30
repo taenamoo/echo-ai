@@ -33,7 +33,7 @@ export default function SignupPage() {
         setLoading(false);
         return;
       }
-      const res = await axios.post('/api/auth/signup', { email, password });
+      const res = await axios.post('/auth/signup', { email, password });
       const token = res?.data?.accessToken as string | undefined;
       if (!token) {
         // 일부 플로우에서 자동 로그인을 하지 않을 수 있으므로, 토큰이 없으면 로그인 페이지로 이동

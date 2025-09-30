@@ -96,7 +96,7 @@ const AiSearchButton = () => {
     setIsSearching(true);
 
     try {
-      const { data } = await axios.post('/api/study/search', 
+      const { data } = await axios.post('/study/search',
         { searchTerm: userMessage.text },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
@@ -284,7 +284,7 @@ const StudyForm = ({ study, parentId, onSave, onCancel }: { study: Partial<Study
     e.preventDefault();
     if (!accessToken) return;
 
-    const url = study?.study_id ? `/api/study/${study.study_id}` : '/api/study';
+    const url = study?.study_id ? `/study/${study.study_id}` : '/study';
     const method = study?.study_id ? 'put' : 'post';
 
     try {
@@ -293,10 +293,10 @@ const StudyForm = ({ study, parentId, onSave, onCancel }: { study: Partial<Study
       // 하위 메뉴(상세 내용)인 경우에만 AI 분석을 요청합니다.
       if (isSubMenu) {
         setIsAnalyzing(true);
-        const { data: analyzeData } = await axios.post('/api/study/analyze', formData, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const { data: analyzeData } = await axios.post('/study/analyze', formData, { headers: { Authorization: `Bearer ${accessToken}` } });
         
         const finalData = { ...savedStudy, ai_suggestion: analyzeData.suggestion };
-        await axios.put(`/api/study/${savedStudy.study_id}`, finalData, { headers: { Authorization: `Bearer ${accessToken}` } });
+        await axios.put(`/study/${savedStudy.study_id}`, finalData, { headers: { Authorization: `Bearer ${accessToken}` } });
         onSave(finalData);
       } else {
         onSave(savedStudy);
@@ -402,7 +402,7 @@ export default function StudyPage() {
   const fetchStudies = async (token: string, studyIdToSelect?: string) => {
     try {
       setIsLoading(true);
-      const { data } = await axios.get('/api/study', { headers: { Authorization: `Bearer ${token}` } });
+      const { data } = await axios.get('/study', { headers: { Authorization: `Bearer ${token}` } });
       
       // 재귀 함수를 이용해 중첩된 스터디 목록을 정렬합니다.
       const sortStudies = (items: Study[]): Study[] => {
@@ -478,7 +478,7 @@ export default function StudyPage() {
     const message = study.parent_id ? `"${study.title}" 항목을 삭제하시겠습니까?` : `상위 메뉴 "${study.title}"와 모든 하위 메뉴를 삭제하시겠습니까?`;
     if (window.confirm(message) && accessToken) {
       try {
-        await axios.delete(`/api/study/${study.study_id}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+        await axios.delete(`/study/${study.study_id}`, { headers: { Authorization: `Bearer ${accessToken}` } });
         await fetchStudies(accessToken, studies.length > 1 ? studies[0].study_id : undefined);
       } catch (error) { alert('삭제에 실패했습니다.'); }
     }
@@ -494,7 +494,7 @@ export default function StudyPage() {
     setIsAnswerChecked(false);
     setIsQuizModalOpen(true);
     try {
-      const { data } = await axios.post('/api/study/quiz', {
+      const { data } = await axios.post('/study/quiz', {
         content: selectedStudy.content,
         count: 3
       }, {

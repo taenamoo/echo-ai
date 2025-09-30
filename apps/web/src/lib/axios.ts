@@ -3,6 +3,16 @@ import Axios from 'axios';
 // Shared axios instance with 401 handling for expired/invalid tokens
 const axios = Axios.create();
 
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, '');
+if (apiBaseUrl) {
+  axios.defaults.baseURL = apiBaseUrl;
+} else {
+  if (typeof window !== 'undefined') {
+    // eslint-disable-next-line no-console
+    console.warn('NEXT_PUBLIC_API_BASE_URL가 설정되지 않아 API 요청이 실패할 수 있습니다.');
+  }
+}
+
 axios.interceptors.response.use(
   (response) => response,
   (error) => {

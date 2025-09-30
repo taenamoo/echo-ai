@@ -3,7 +3,7 @@ import { Construct } from 'constructs';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as nodejs from '@aws-cdk/aws-lambda-nodejs-alpha';
+import * as nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
@@ -20,10 +20,27 @@ export class EchoAiApiStack extends cdk.Stack {
     super(scope, id, props);
 
     const stage = process.env.APP_STAGE || process.env.STAGE || 'develop';
+    const stageId = stage.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    const stageSuffix = stageId.length > 0 ? stageId : 'default';
+    const withStage = (base: string) => `${base}-${stageSuffix}`;
+
+    // CORS origins: prefer env ALLOWED_ORIGINS, else include CF domain and localhost
+    const allowedOriginsStr = process.env.ALLOWED_ORIGINS || '';
+    const defaultOrigins = ['http://localhost:5173'];
+    if (props.uiCloudFrontDomain)
+      defaultOrigins.push(`https://${props.uiCloudFrontDomain}`);
+    const allowOrigins = (
+      allowedOriginsStr
+        ? allowedOriginsStr
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : defaultOrigins
+    ) as string[];
 
     // DynamoDB
     const mainTable = new dynamodb.Table(this, 'MainTable', {
-      tableName: 'EchoAI-Main-Table',
+      tableName: withStage('EchoAI-Main-Table'),
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -36,7 +53,7 @@ export class EchoAiApiStack extends cdk.Stack {
     });
 
     const studyTable = new dynamodb.Table(this, 'StudyTable', {
-      tableName: 'EchoAi-Studies',
+      tableName: withStage('EchoAi-Studies'),
       partitionKey: { name: 'user_id', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'study_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
@@ -66,19 +83,19 @@ export class EchoAiApiStack extends cdk.Stack {
 
     // SQS queue for summarization
     const summarizeQueue = new sqs.Queue(this, 'SummarizeQueue', {
-      queueName: 'echoai-summarize-queue',
+      queueName: withStage('echoai-summarize-queue'),
       visibilityTimeout: cdk.Duration.seconds(60),
     });
 
-    // Secrets Manager (dev placeholder) — step 6 will switch Lambdas to fetch at runtime
+    // Secrets Manager (runtime source for JWT/Gemini and related secrets)
     const secret = new secretsmanager.Secret(this, 'AppSecret', {
       secretName: `echoai/${stage}/app`,
       description: 'Echo AI app runtime secrets (JWT, Gemini, etc.)',
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
-          JWT_SECRET: 'CHANGE_ME',
-          GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-          SUMMARIZE_PROVIDER: 'gemini'
+          JWT_SECRET: 'development-secret',
+          GEMINI_API_KEY: 'development-gemini-key',
+          SUMMARIZE_PROVIDER: 'gemini',
         }),
         generateStringKey: 'placeholder',
       },
@@ -90,16 +107,21 @@ export class EchoAiApiStack extends cdk.Stack {
       architecture: lambda.Architecture.X86_64,
       memorySize: 512,
       timeout: cdk.Duration.seconds(20),
-      bundling: { minify: true, externalModules: [], tsconfig: 'tsconfig.base.json' },
+      bundling: {
+        minify: true,
+        externalModules: [],
+        tsconfig: 'tsconfig.base.json',
+      },
       environment: {
         APP_STAGE: stage,
-        AWS_REGION: this.region,
+        AWS_REGION: cdk.Stack.of(this).region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
         SUMMARIZE_SQS_QUEUE_URL: summarizeQueue.queueUrl,
-        // TODO: replace with Secrets Manager runtime fetch in step 6
-        JWT_SECRET: 'CHANGE_ME',
-        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-        SUMMARIZE_USE_MOCK: 'true',
+        JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
+        GEMINI_API_KEY: secret
+          .secretValueFromJson('GEMINI_API_KEY')
+          .unsafeUnwrap(),
+        SUMMARIZE_USE_MOCK: stage === 'local' ? 'true' : 'false',
         SECRETS_NAME: secret.secretName,
         SECRETS_ARN: secret.secretArn,
       },
@@ -203,24 +225,29 @@ export class EchoAiApiStack extends cdk.Stack {
     documentsBucket.grantRead(documents.summarize);
 
     // DynamoDB permissions (coarse but simple)
-    [auth.signup, auth.login, auth.me,
-     presign,
-     documents.create, documents.list, documents.get, documents.remove, documents.summarize,
-     study.list, study.create, study.update, study.remove, study.quiz, study.search, study.analyze
-    ].forEach(fn => {
+    [
+      auth.signup,
+      auth.login,
+      auth.me,
+      presign,
+      documents.create,
+      documents.list,
+      documents.get,
+      documents.remove,
+      documents.summarize,
+      study.list,
+      study.create,
+      study.update,
+      study.remove,
+      study.quiz,
+      study.search,
+      study.analyze,
+    ].forEach((fn) => {
       mainTable.grantReadWriteData(fn);
       studyTable.grantReadWriteData(fn);
     });
 
     // API Gateway (REST)
-    // CORS origins: prefer env ALLOWED_ORIGINS, else include CF domain and localhost
-    const allowedOriginsStr = process.env.ALLOWED_ORIGINS || '';
-    const defaultOrigins = ['http://localhost:5173'];
-    if (props.uiCloudFrontDomain) defaultOrigins.push(`https://${props.uiCloudFrontDomain}`);
-    const allowOrigins = (allowedOriginsStr
-      ? allowedOriginsStr.split(',').map((s) => s.trim()).filter(Boolean)
-      : defaultOrigins) as string[];
-
     const api = new apigw.RestApi(this, 'EchoApi', {
       restApiName: `echoai-${stage}`,
       defaultCorsPreflightOptions: {
@@ -233,18 +260,31 @@ export class EchoAiApiStack extends cdk.Stack {
 
     // Routes
     const authRes = api.root.addResource('auth');
-    authRes.addResource('signup').addMethod('POST', new apigw.LambdaIntegration(auth.signup));
-    authRes.addResource('login').addMethod('POST', new apigw.LambdaIntegration(auth.login));
-    api.root.addResource('me').addMethod('GET', new apigw.LambdaIntegration(auth.me));
+    authRes
+      .addResource('signup')
+      .addMethod('POST', new apigw.LambdaIntegration(auth.signup));
+    authRes
+      .addResource('login')
+      .addMethod('POST', new apigw.LambdaIntegration(auth.login));
+    api.root
+      .addResource('me')
+      .addMethod('GET', new apigw.LambdaIntegration(auth.me));
 
     const documentsRes = api.root.addResource('documents');
     documentsRes.addMethod('GET', new apigw.LambdaIntegration(documents.list));
-    documentsRes.addMethod('POST', new apigw.LambdaIntegration(documents.create));
-    documentsRes.addResource('presign').addMethod('POST', new apigw.LambdaIntegration(presign));
+    documentsRes.addMethod(
+      'POST',
+      new apigw.LambdaIntegration(documents.create)
+    );
+    documentsRes
+      .addResource('presign')
+      .addMethod('POST', new apigw.LambdaIntegration(presign));
     const docId = documentsRes.addResource('{id}');
     docId.addMethod('GET', new apigw.LambdaIntegration(documents.get));
     docId.addMethod('DELETE', new apigw.LambdaIntegration(documents.remove));
-    docId.addResource('summarize').addMethod('POST', new apigw.LambdaIntegration(documents.summarize));
+    docId
+      .addResource('summarize')
+      .addMethod('POST', new apigw.LambdaIntegration(documents.summarize));
 
     const studyRes = api.root.addResource('study');
     studyRes.addMethod('GET', new apigw.LambdaIntegration(study.list));
@@ -252,9 +292,18 @@ export class EchoAiApiStack extends cdk.Stack {
     const studyId = studyRes.addResource('{id}');
     studyId.addMethod('PUT', new apigw.LambdaIntegration(study.update));
     studyId.addMethod('DELETE', new apigw.LambdaIntegration(study.remove));
-    api.root.addResource('study').addResource('quiz').addMethod('POST', new apigw.LambdaIntegration(study.quiz));
-    api.root.addResource('study').addResource('search').addMethod('POST', new apigw.LambdaIntegration(study.search));
-    api.root.addResource('study').addResource('analyze').addMethod('POST', new apigw.LambdaIntegration(study.analyze));
+    api.root
+      .addResource('study')
+      .addResource('quiz')
+      .addMethod('POST', new apigw.LambdaIntegration(study.quiz));
+    api.root
+      .addResource('study')
+      .addResource('search')
+      .addMethod('POST', new apigw.LambdaIntegration(study.search));
+    api.root
+      .addResource('study')
+      .addResource('analyze')
+      .addMethod('POST', new apigw.LambdaIntegration(study.analyze));
 
     // AI Processor (SQS consumer)
     const aiProcessor = new nodejs.NodejsFunction(this, 'AiProcessorFn', {
@@ -267,16 +316,20 @@ export class EchoAiApiStack extends cdk.Stack {
       bundling: { minify: true, tsconfig: 'tsconfig.base.json' },
       environment: {
         APP_STAGE: stage,
-        AWS_REGION: this.region,
+        AWS_REGION: cdk.Stack.of(this).region,
         S3_BUCKET_NAME: documentsBucket.bucketName,
-        JWT_SECRET: 'CHANGE_ME',
-        GEMINI_API_KEY: 'YOUR_GEMINI_API_KEY',
-        SUMMARIZE_USE_MOCK: 'true',
+        JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
+        GEMINI_API_KEY: secret
+          .secretValueFromJson('GEMINI_API_KEY')
+          .unsafeUnwrap(),
+        SUMMARIZE_USE_MOCK: stage === 'local' ? 'true' : 'false',
         SECRETS_NAME: secret.secretName,
         SECRETS_ARN: secret.secretArn,
       },
     });
-    aiProcessor.addEventSource(new lambdaEventSources.SqsEventSource(summarizeQueue, { batchSize: 5 }));
+    aiProcessor.addEventSource(
+      new lambdaEventSources.SqsEventSource(summarizeQueue, { batchSize: 5 })
+    );
 
     documentsBucket.grantRead(aiProcessor);
     mainTable.grantReadWriteData(aiProcessor);
@@ -288,17 +341,24 @@ export class EchoAiApiStack extends cdk.Stack {
     secret.grantRead(auth.login);
     secret.grantRead(auth.me);
     secret.grantRead(presign);
-    Object.values(documents).forEach(fn => secret.grantRead(fn));
-    Object.values(study).forEach(fn => secret.grantRead(fn));
+    Object.values(documents).forEach((fn) => secret.grantRead(fn));
+    Object.values(study).forEach((fn) => secret.grantRead(fn));
     secret.grantRead(aiProcessor);
 
     new cdk.CfnOutput(this, 'ApiEndpoint', { value: api.url });
-    new cdk.CfnOutput(this, 'DocumentsBucketName', { value: documentsBucket.bucketName });
-    new cdk.CfnOutput(this, 'SummarizeQueueUrl', { value: summarizeQueue.queueUrl });
+    new cdk.CfnOutput(this, 'DocumentsBucketName', {
+      value: documentsBucket.bucketName,
+    });
+    new cdk.CfnOutput(this, 'SummarizeQueueUrl', {
+      value: summarizeQueue.queueUrl,
+    });
     new cdk.CfnOutput(this, 'SecretsArn', { value: secret.secretArn });
 
     // -------- CloudWatch basic alarms (dev) --------
-    const sqsAgeMetric = summarizeQueue.metricApproximateAgeOfOldestMessage({ period: cdk.Duration.minutes(5), statistic: 'Maximum' });
+    const sqsAgeMetric = summarizeQueue.metricApproximateAgeOfOldestMessage({
+      period: cdk.Duration.minutes(5),
+      statistic: 'Maximum',
+    });
     const sqsAgeAlarm = new cw.Alarm(this, 'SummarizeQueueAgeAlarm', {
       metric: sqsAgeMetric,
       threshold: 60, // seconds
@@ -308,26 +368,40 @@ export class EchoAiApiStack extends cdk.Stack {
       alarmDescription: 'SQS summarize queue oldest message age > 60s',
     });
 
-    const aiErrorsMetric = aiProcessor.metricErrors({ period: cdk.Duration.minutes(5), statistic: 'Sum' });
+    const aiErrorsMetric = aiProcessor.metricErrors({
+      period: cdk.Duration.minutes(5),
+      statistic: 'Sum',
+    });
     const aiErrorsAlarm = new cw.Alarm(this, 'AiProcessorErrorsAlarm', {
       metric: aiErrorsMetric,
       threshold: 1,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
-      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      comparisonOperator:
+        cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       alarmDescription: 'AI Processor Lambda errors detected',
     });
 
-    const api5xxMetric = api.metricServerError({ period: cdk.Duration.minutes(5), statistic: 'Sum' });
+    const api5xxMetric = api.metricServerError({
+      period: cdk.Duration.minutes(5),
+      statistic: 'Sum',
+    });
     const api5xxAlarm = new cw.Alarm(this, 'Api5xxAlarm', {
       metric: api5xxMetric,
       threshold: 1,
       evaluationPeriods: 1,
       datapointsToAlarm: 1,
-      comparisonOperator: cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+      comparisonOperator:
+        cw.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
       alarmDescription: 'API Gateway 5xx errors detected',
     });
 
-    new cdk.CfnOutput(this, 'AlarmNames', { value: [sqsAgeAlarm.alarmName, aiErrorsAlarm.alarmName, api5xxAlarm.alarmName].join(',') });
+    new cdk.CfnOutput(this, 'AlarmNames', {
+      value: [
+        sqsAgeAlarm.alarmName,
+        aiErrorsAlarm.alarmName,
+        api5xxAlarm.alarmName,
+      ].join(','),
+    });
   }
 }

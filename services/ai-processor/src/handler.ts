@@ -3,7 +3,7 @@ import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { s3Client, dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
 import { extractTextFromBuffer, streamToBuffer } from '@echo-ai/documents';
-import { getConfig } from '@echo-ai/config';
+import { getConfig, hydrateConfigFromSecrets, type AppConfig } from '@echo-ai/config';
 import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai';
 
 type SummarizeMessage = {
@@ -15,16 +15,25 @@ type SummarizeMessage = {
 
 type PartialBatchResponse = { batchItemFailures: { itemIdentifier: string }[] };
 
-const config = getConfig();
 const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 25000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
-const SUMMARIZE_USE_MOCK = /^true$/i.test(
-  process.env.SUMMARIZE_USE_MOCK || (config.stage === 'local' && (!config.geminiApiKey || config.geminiApiKey === 'YOUR_GEMINI_API_KEY') ? 'true' : '')
-);
+async function ensureConfig(): Promise<AppConfig> {
+  await hydrateConfigFromSecrets();
+  return getConfig();
+}
+
+function shouldUseMock(config: AppConfig): boolean {
+  if (typeof process.env.SUMMARIZE_USE_MOCK === 'string') {
+    return /^true$/i.test(process.env.SUMMARIZE_USE_MOCK);
+  }
+  return config.stage === 'local';
+}
 
 export async function handler(event: SQSEvent): Promise<PartialBatchResponse> {
+  const config = await ensureConfig();
+  const useMock = shouldUseMock(config);
   const failures: { itemIdentifier: string }[] = [];
 
   for (const record of event.Records) {
@@ -54,7 +63,7 @@ export async function handler(event: SQSEvent): Promise<PartialBatchResponse> {
 
       // 4) Summarize via Gemini
       const truncated = text.length > SUMMARIZE_MAX_CHARS ? text.slice(0, SUMMARIZE_MAX_CHARS) : text;
-      const summaryText = await summarizeText(truncated);
+      const summaryText = await summarizeText(truncated, config, useMock);
 
       // 5) Persist result
       await safeUpdateStatus(msg.userId, msg.documentId, 'COMPLETE', { summaryText });
@@ -144,8 +153,8 @@ async function getObjectText(bucket: string, key: string): Promise<{ text: strin
   return { text: text || '', contentType };
 }
 
-async function summarizeText(text: string): Promise<string> {
-  if (SUMMARIZE_USE_MOCK) {
+async function summarizeText(text: string, config: AppConfig, useMock: boolean): Promise<string> {
+  if (useMock || !config.geminiApiKey) {
     const cleaned = text.replace(/\s+/g, ' ').slice(0, 800);
     return `요약(모의): ${cleaned}${cleaned.length === 800 ? '…' : ''}`;
   }

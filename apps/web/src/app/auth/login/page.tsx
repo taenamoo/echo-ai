@@ -30,7 +30,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await axios.post('/api/auth/login', { email, password });
+      const res = await axios.post('/auth/login', { email, password });
       const token = res?.data?.accessToken as string | undefined;
       if (!token) throw new Error('로그인 응답에 토큰이 없습니다.');
       localStorage.setItem('accessToken', token);

@@ -38,7 +38,9 @@ export async function hydrateConfigFromSecrets(env: NodeJS.ProcessEnv = process.
       const json = JSON.parse(raw);
       const keys = ['JWT_SECRET', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'HASH_SALT', 'SUMMARIZE_PROVIDER'] as const;
       for (const k of keys) {
-        if (!env[k] && json[k]) env[k] = String(json[k]);
+        if (json[k]) {
+          env[k] = String(json[k]);
+        }
       }
     }
   } catch {
