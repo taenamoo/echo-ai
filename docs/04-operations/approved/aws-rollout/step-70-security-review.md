@@ -1,0 +1,65 @@
+---
+title: 70단계. 보안 점검 수행
+domain: operations
+status: approved
+owner: operations@echo.ai
+last-updated: 2025-10-02
+linked-issues: []
+---
+# 70단계. 보안 점검 수행
+
+## 목적
+- 개발 환경에 배포된 리소스와 애플리케이션이 보안 기준을 충족하는지 종합 점검한다.
+- 31단계 보안 기준, 57단계 보안 스캔 결과를 반영하여 위험을 식별하고 개선한다.
+
+## 선행조건
+- [57단계 보안 스캔 리뷰](docs/04-operations/approved/aws-rollout/step-57-security-scan-review.md) 결과 분석 완료.
+- [65단계 최초 배포](docs/04-operations/approved/aws-rollout/step-65-initial-dev-deployment.md) 및 [69단계 성능 테스트](docs/04-operations/approved/aws-rollout/step-69-performance-test-execution.md) 결과 확보.
+- IAM/네트워크 정책이 [41단계 IAM 프로비저닝](docs/04-operations/approved/aws-rollout/step-41-iam-provisioning.md), [17단계 네트워크 보안 정책](docs/04-operations/approved/aws-rollout/step-17-network-security-policies.md)에 따라 구성되어야 한다.
+
+## 필요한 입력 자료
+- IAM 정책, 보안 그룹, NACL 설정 Export.
+- 취약점 스캔 보고서, SAST/SCA 결과.
+- 감사 로그(CloudTrail, AWS Config) 및 변경 이력.
+
+## 상세 절차
+1. **점검 범위 정의**
+   - 계정 보안(루트 계정, MFA), 네트워크(보안 그룹, NACL), 데이터 보호(암호화, 접근 제어), 애플리케이션 보안(OWASP Top 10) 범위를 정의한다.
+   - 75단계 사고 대응, 76단계 감사 추적과 연계될 항목을 식별한다.
+2. **구성 검토**
+   - IAM 정책 최소 권한 준수 여부를 확인하고 필요 시 Access Analyzer, IAM Access Advisor를 사용한다.
+   - 보안 그룹/ACL에서 불필요한 포트가 개방되어 있지 않은지 점검한다.
+   - S3, RDS 등 데이터 저장소 암호화 및 접근 정책을 확인한다.
+3. **취약점 및 컴플라이언스 점검**
+   - AWS Security Hub, Inspector, GuardDuty 등의 결과를 검토하고 우선순위를 부여한다.
+   - 57단계에서 남은 이슈가 해결되었는지 확인한다.
+4. **침투 테스트/수동 점검**
+   - 필요 시 내부 침투 테스트를 수행하거나 서드파티 점검을 의뢰한다.
+   - 주요 엔드포인트에 대해 OWASP ZAP 등 도구를 활용해 수동 점검을 진행한다.
+5. **리포트 작성 및 시정 조치 계획**
+   - 발견된 취약점, 위험도, 권고 조치를 문서화한다.
+   - 시정 조치 담당자와 일정, 추적 방법을 정의한다.
+6. **승인 및 추적**
+   - 34단계 승인 체계를 통해 보안 점검 결과를 공유하고 승인받는다.
+   - 미해결 항목은 리스크 등록부에 기록하고 지속 추적한다.
+
+## 의사결정 포인트
+- 외부 보안 인증/감사를 진행할지 여부.
+- 보안 이슈에 대한 우선순위와 해결 기한 설정.
+- 점검 주기(개발 환경, 스테이징, 운영)와 범위.
+
+## 체크리스트
+- [ ] IAM/네트워크/데이터 보안 설정이 기준을 충족한다.
+- [ ] 보안 스캔/침투 테스트 결과가 검토되고 시정 조치 계획이 수립되었다.
+- [ ] 점검 보고서가 승인되었다.
+- [ ] 리스크 등록부와 추적 메커니즘이 업데이트되었다.
+
+## 산출물 및 보관 위치
+- 보안 점검 보고서(`docs/reports/security-review-dev.md`).
+- 시정 조치 계획 및 티켓 목록.
+- 감사 로그 스냅샷 및 증적 파일.
+
+## 다음 단계 연계
+- 71단계 비용 알람, 72단계 백업/DR 테스트와 일정 조율 시 보안 제약을 고려한다.
+- 75단계 사고 대응 절차, 79단계 운영 이벤트 관리에 점검 결과를 반영한다.
+- 96단계 감사 대비 자료 준비에 활용한다.

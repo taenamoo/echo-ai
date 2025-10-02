@@ -1,0 +1,53 @@
+---
+title: 작업 계획서: 인증 UI 페이지 구축 (로그인/회원가입/로그아웃)
+domain: delivery-plans
+status: approved
+owner: delivery@echo.ai
+last-updated: 2025-10-02
+linked-issues: []
+---
+## 작업 계획서: 인증 UI 페이지 구축 (로그인/회원가입/로그아웃)
+우선순위: 6
+
+### 1. 목표
+- api-test용 임시 페이지를 대체할 정식 인증 UI를 제공한다.
+- 백엔드 인증 API와 연동하여 실제 사용자 흐름을 지원한다.
+
+-----
+
+### 2. 화면/경로
+- `/auth/login`, `/auth/signup`, (옵션) `/auth/logout`
+- 레이아웃/공통 폼 컴포넌트 정의
+
+-----
+
+### 3. 작업 단계 (Step-by-Step)
+1) 로그인 페이지
+ - 이메일/비밀번호 입력 → `/api/auth/login`
+ - 성공 시 토큰 저장(쿠키/스토리지) 후 리다이렉트(`/documents`)
+ - 실패 시 에러 메시지 표준화
+  - 만료 복귀 배너: `/auth/login?reason=expired` 진입 시 폼 상단 경고 배너 노출
+
+2) 회원가입 페이지
+  - 입력 검증(비밀번호 정책 적용) → `/api/auth/signup`
+  - 성공 시 자동 로그인 또는 로그인 페이지 이동
+
+3) 로그아웃
+  - 토큰 파기, 상태 초기화, `/auth/login`으로 이동
+
+4) 가드/리다이렉트
+  - 인증 필요 페이지 접근 시 로그인으로 이동
+  - 로그인 상태에서 `/auth/*` 접근 시 홈/문서로 이동
+
+5) UX/에러 처리
+  - 로딩/검증 표시, 접근성 고려
+ - 토큰 만료/무효 시 안내: 레이아웃에서 `reason=expired`(또는 `session=expired`) 쿼리 및 `auth:session-expired` 이벤트를 감지하여 토스트 표시(`ToastProvider`)
+ - FE 처리 흐름: axios 인터셉터가 토큰 삭제 후 `/auth/login?reason=expired`로 이동 → 레이아웃 리스너가 토스트 안내 및 쿼리 정리
+  - 사용자 정보 캐싱: `UserProvider`(Context) + `sessionStorage`로 `/api/me`를 세션당 1회만 호출하여 헤더 등 전역에서 공유
+
+-----
+
+### 4. 수용 기준
+- 가입→로그인→문서 페이지 접근 플로우가 동작
+- 토큰 만료/오류 시 토큰 삭제, 홈 리다이렉트, 토스트 안내가 동작
+ - 헤더에서 사용자 이메일 표시가 중복 호출 없이 세션 캐시 기반으로 동작
