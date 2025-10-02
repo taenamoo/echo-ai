@@ -84,7 +84,7 @@ Echo AI는 AWS의 관리형 서비스를 최대한 활용하는 서버리스 아
 ### 테스트 코드 작성 (Test Generation)
 
 -   **요청 예시**:
-    > gemini "@src/lib/auth/password.ts 파일의 hashPassword 함수에 대한 Jest 단위 테스트 코드를 작성해줘. 모든 엣지 케이스를 고려해야 해."
+    > gemini "@packages/@echo-ai/auth/src/password.ts 파일의 hashPassword 함수에 대한 Jest 단위 테스트 코드를 작성해줘. 모든 엣지 케이스를 고려해야 해."
 
 -   **기대 결과**:
     -   Jest 프레임워크를 사용한 테스트 코드를 생성합니다.

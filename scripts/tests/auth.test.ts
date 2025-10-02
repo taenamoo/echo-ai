@@ -9,13 +9,17 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { config as loadEnv } from 'dotenv';
-import { validatePasswordPolicy, generateAccessToken, verifyTokenDetailed } from '../../packages/@echo-ai/auth/src/index';
-import { requireAuth, AUTH_ERROR_MESSAGE } from '../../apps/web/src/lib/api/auth';
+import {
+  validatePasswordPolicy,
+  generateAccessToken,
+  verifyTokenDetailed,
+  requireAuthFromAuthorization,
+  AUTH_ERROR_MESSAGE,
+} from '../../packages/@echo-ai/auth/src/index';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 loadEnv({ path: resolve(__dirname, '../../env.local_test') });
-import type { NextRequest } from 'next/server';
 
 function assert(cond: any, msg: string) {
   if (!cond) throw new Error('Assertion failed: ' + msg);
@@ -23,17 +27,6 @@ function assert(cond: any, msg: string) {
 
 function log(title: string) {
   console.log('✓', title);
-}
-
-function mockReq(authHeader?: string): NextRequest {
-  const headers = new Map<string, string>();
-  if (authHeader) headers.set('authorization', authHeader);
-  const reqLike = {
-    headers: {
-      get: (key: string) => headers.get(key.toLowerCase()) || null,
-    },
-  } as any;
-  return reqLike as unknown as NextRequest;
 }
 
 async function testPasswordPolicy() {
@@ -65,29 +58,26 @@ async function testVerifyTokenDetailed() {
 
 async function testRequireAuth() {
   // Missing
-  const r1 = requireAuth(mockReq());
-  assert(r1.ok === false, 'missing token should fail');
-  const body1 = await (r1 as any).res.json();
-  assert(body1.message === AUTH_ERROR_MESSAGE.missing, 'missing message should match');
+  const r1 = requireAuthFromAuthorization(null);
+  assert(r1.ok === false && r1.reason === 'missing', 'missing token should fail');
+  assert(r1.message === AUTH_ERROR_MESSAGE.missing, 'missing message should match');
 
   // Invalid
-  const r2 = requireAuth(mockReq('Bearer not-a-token'));
-  assert(r2.ok === false, 'invalid token should fail');
-  const body2 = await (r2 as any).res.json();
-  assert(body2.message === AUTH_ERROR_MESSAGE.invalid, 'invalid message should match');
+  const r2 = requireAuthFromAuthorization('Bearer not-a-token');
+  assert(r2.ok === false && r2.reason === 'invalid', 'invalid token should fail');
+  assert(r2.message === AUTH_ERROR_MESSAGE.invalid, 'invalid message should match');
 
   // Valid
   const t = generateAccessToken('me', 'me@example.com', { expiresIn: '5s' });
-  const r3 = requireAuth(mockReq('Bearer ' + t));
-  assert(r3.ok === true && (r3 as any).userId === 'me', 'valid token should pass and return userId');
+  const r3 = requireAuthFromAuthorization('Bearer ' + t);
+  assert(r3.ok === true && r3.userId === 'me', 'valid token should pass and return userId');
 
   // Expired
   const te = generateAccessToken('you', 'you@example.com', { expiresIn: '1s' });
   await new Promise((r) => setTimeout(r, 1200));
-  const r4 = requireAuth(mockReq('Bearer ' + te));
-  assert(r4.ok === false, 'expired token should fail');
-  const body4 = await (r4 as any).res.json();
-  assert(body4.message === AUTH_ERROR_MESSAGE.expired, 'expired message should match');
+  const r4 = requireAuthFromAuthorization('Bearer ' + te);
+  assert(r4.ok === false && r4.reason === 'expired', 'expired token should fail');
+  assert(r4.message === AUTH_ERROR_MESSAGE.expired, 'expired message should match');
 
   log('requireAuth');
 }

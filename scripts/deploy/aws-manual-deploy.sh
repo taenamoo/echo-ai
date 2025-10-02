@@ -349,4 +349,4 @@ else
 fi
 
 echo
-echo "Remember to verify application functionality and alarms per docs/aws-deployment/current-deployment-steps.md."
+echo "Remember to verify application functionality and alarms per docs/04-operations/approved/aws-rollout/current-deployment-steps-approved.md."

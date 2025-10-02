@@ -14,7 +14,6 @@
     "test:pdfjs:pua": "pnpm dlx tsx scripts/tests/pdfjs-pua-benchmark.ts",
     "spa:dev": "pnpm --filter @echo-ai/app-spa dev",
     "spa:build": "pnpm --filter @echo-ai/app-spa build",
-    "spa:sync-assets": "bash scripts/tools/sync-public-assets.sh",
     "deploy:aws": "bash scripts/deploy/aws-manual-deploy.sh"
   },
   "dependencies": {
