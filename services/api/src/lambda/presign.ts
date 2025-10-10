@@ -1,5 +1,6 @@
 import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { createPresignHandler } from '@echo-ai/api-core';
+import { toApiGatewayResponse } from './utils/response';
 
 export const createPresign: APIGatewayProxyHandlerV2 = async (event) => {
   const res = await createPresignHandler({
@@ -8,5 +9,5 @@ export const createPresign: APIGatewayProxyHandlerV2 = async (event) => {
     headers: event.headers as any,
     body: event.body || null,
   });
-  return { statusCode: res.status, headers: res.headers, body: JSON.stringify(res.body ?? {}) };
+  return toApiGatewayResponse(res, event.headers ?? {});
 };

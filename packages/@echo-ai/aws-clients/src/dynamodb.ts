@@ -22,5 +22,20 @@ const baseClient = createDynamoDbClient();
 
 export const dynamoDbDocumentClient = DynamoDBDocumentClient.from(baseClient);
 
-export const MAIN_TABLE_NAME = 'EchoAI-Main-Table';
-export const STUDY_TABLE_NAME = 'EchoAi-Studies';
+const stageRaw = process.env.APP_STAGE || process.env.STAGE || 'develop';
+const stageId = stageRaw.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+const stageSuffix = stageId.length > 0 ? stageId : 'default';
+const withStage = (base: string) => `${base}-${stageSuffix}`;
+
+const defaultMainTableName = withStage('EchoAI-Main-Table');
+const defaultStudyTableName = withStage('EchoAi-Studies');
+
+export const MAIN_TABLE_NAME =
+  process.env.MAIN_TABLE_NAME && process.env.MAIN_TABLE_NAME.length > 0
+    ? process.env.MAIN_TABLE_NAME
+    : defaultMainTableName;
+
+export const STUDY_TABLE_NAME =
+  process.env.STUDY_TABLE_NAME && process.env.STUDY_TABLE_NAME.length > 0
+    ? process.env.STUDY_TABLE_NAME
+    : defaultStudyTableName;

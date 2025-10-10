@@ -15,7 +15,7 @@ type SummarizeMessage = {
 
 type PartialBatchResponse = { batchItemFailures: { itemIdentifier: string }[] };
 
-const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-1.5-flash';
+const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-2.0-flash';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 25000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(process.env.SUMMARIZE_MAX_OUTPUT_TOKENS || 1024);
@@ -47,6 +47,12 @@ export async function handler(event: SQSEvent): Promise<PartialBatchResponse> {
       // 1) Load document metadata, verify ownership by key
       const doc = await loadDocument(msg.userId, msg.documentId);
       if (!doc || !doc.s3Key) {
+        logFailure('document-metadata-missing', {
+          userId: msg.userId,
+          documentId: msg.documentId,
+          recordId: record.messageId,
+          doc,
+        });
         await safeUpdateStatus(msg.userId, msg.documentId, 'FAILED');
         continue;
       }
@@ -55,20 +61,61 @@ export async function handler(event: SQSEvent): Promise<PartialBatchResponse> {
       await safeUpdateStatus(msg.userId, msg.documentId, 'PROCESSING');
 
       // 3) Fetch and extract text
-      const { text, contentType } = await getObjectText(config.s3BucketName, doc.s3Key);
+      let text: string | null = null;
+      let contentType: string | undefined;
+      try {
+        const res = await getObjectText(config.s3BucketName, doc.s3Key);
+        text = res.text;
+        contentType = res.contentType;
+      } catch (error) {
+        logFailure('s3-read-failed', {
+          userId: msg.userId,
+          documentId: msg.documentId,
+          recordId: record.messageId,
+          bucket: config.s3BucketName,
+          key: doc.s3Key,
+          error,
+        });
+        throw error;
+      }
       if (!text || text.trim().length === 0) {
+        logFailure('text-empty', {
+          userId: msg.userId,
+          documentId: msg.documentId,
+          recordId: record.messageId,
+          bucket: config.s3BucketName,
+          key: doc.s3Key,
+          contentType,
+        });
         await safeUpdateStatus(msg.userId, msg.documentId, 'FAILED');
         continue;
       }
 
       // 4) Summarize via Gemini
       const truncated = text.length > SUMMARIZE_MAX_CHARS ? text.slice(0, SUMMARIZE_MAX_CHARS) : text;
-      const summaryText = await summarizeText(truncated, config, useMock);
+      let summaryText: string;
+      try {
+        summaryText = await summarizeText(truncated, config, useMock);
+      } catch (error) {
+        logFailure('summarize-failed', {
+          userId: msg.userId,
+          documentId: msg.documentId,
+          recordId: record.messageId,
+          error,
+          textLength: truncated.length,
+          useMock,
+        });
+        throw error;
+      }
 
       // 5) Persist result
       await safeUpdateStatus(msg.userId, msg.documentId, 'COMPLETE', { summaryText });
     } catch (err) {
-      console.error('SQS record processing failed:', { err });
+      logFailure('record-processing-error', {
+        error: err,
+        recordId: record.messageId,
+        body: record.body,
+      });
       failures.push({ itemIdentifier: record.messageId });
       try {
         const msg = parseMessage(record);
@@ -181,4 +228,23 @@ async function summarizeText(text: string, config: AppConfig, useMock: boolean):
   })();
 
   return (await Promise.race([task, timeout])) as string;
+}
+
+function formatError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+  return { message: String(error) };
+}
+
+function logFailure(stage: string, context: Record<string, unknown>) {
+  const { error, ...rest } = context;
+  console.error('[AiProcessor]', stage, {
+    ...rest,
+    error: error ? formatError(error) : undefined,
+  });
 }

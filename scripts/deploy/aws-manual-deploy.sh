@@ -234,12 +234,16 @@ run_single_pass() {
   outputs_dir="$(mktemp -d)"
   temp_dirs+=("$outputs_dir")
 
+  local cdk_out_dir="$outputs_dir/cdk.out"
+  mkdir -p "$cdk_out_dir"
+
   local shared_outputs="$outputs_dir/shared.json"
   local api_outputs="$outputs_dir/api.json"
 
   if [[ "$local_skip_bootstrap" == false ]]; then
     echo "Bootstrapping CDK environment..."
-    APP_STAGE="$stage" pnpm --dir infra exec cdk bootstrap "aws://$account/$region"
+    APP_STAGE="$stage" pnpm --dir infra exec cdk bootstrap "aws://$account/$region" \
+      --output "$cdk_out_dir"
   else
     echo "Skipping CDK bootstrap."
   fi
@@ -247,6 +251,7 @@ run_single_pass() {
   echo "Deploying shared stack (S3 / CloudFront)..."
   APP_STAGE="$stage" pnpm --dir infra exec cdk deploy "EchoAi-Shared-$stage" \
     --require-approval=never \
+    --output "$cdk_out_dir" \
     --outputs-file "$shared_outputs"
 
   ui_bucket="$(read_output_field "$shared_outputs" "EchoAi-Shared-$stage" "UiBucketName")"
@@ -261,6 +266,7 @@ run_single_pass() {
   echo "Deploying API stack (API Gateway / Lambdas / DynamoDB / SQS)..."
   APP_STAGE="$stage" ALLOWED_ORIGINS="$allowed_origins" pnpm --dir infra exec cdk deploy "EchoAi-Api-$stage" \
     --require-approval=never \
+    --output "$cdk_out_dir" \
     --outputs-file "$api_outputs"
 
   api_endpoint="$(read_output_field "$api_outputs" "EchoAi-Api-$stage" "ApiEndpoint")"

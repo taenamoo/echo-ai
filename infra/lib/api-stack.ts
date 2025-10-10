@@ -9,6 +9,8 @@ import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cw from 'aws-cdk-lib/aws-cloudwatch';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 
 export interface EchoAiApiStackProps extends cdk.StackProps {
   uiBucket: string;
@@ -18,6 +20,15 @@ export interface EchoAiApiStackProps extends cdk.StackProps {
 export class EchoAiApiStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: EchoAiApiStackProps) {
     super(scope, id, props);
+
+    const moduleDir = fileURLToPath(new URL('.', import.meta.url));
+    const infraDir = moduleDir.includes('/dist/')
+      ? fileURLToPath(new URL('../../', import.meta.url))
+      : fileURLToPath(new URL('..', import.meta.url));
+    const projectRoot = resolve(infraDir, '..');
+    const lambdaDir = join(projectRoot, 'services', 'api', 'src', 'lambda');
+    const lambdaEntry = (filename: string) => join(lambdaDir, filename);
+    const tsconfigPath = join(projectRoot, 'tsconfig.base.json');
 
     const stage = process.env.APP_STAGE || process.env.STAGE || 'develop';
     const stageId = stage.toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -103,6 +114,8 @@ export class EchoAiApiStack extends cdk.Stack {
 
     // Lambda bundling options
     const nodejsFnDefaults: Partial<nodejs.NodejsFunctionProps> = {
+      projectRoot,
+      depsLockFilePath: join(projectRoot, 'pnpm-lock.yaml'),
       runtime: lambda.Runtime.NODEJS_20_X,
       architecture: lambda.Architecture.X86_64,
       memorySize: 512,
@@ -110,11 +123,15 @@ export class EchoAiApiStack extends cdk.Stack {
       bundling: {
         minify: true,
         externalModules: [],
-        tsconfig: 'tsconfig.base.json',
+        tsconfig: tsconfigPath,
       },
       environment: {
         APP_STAGE: stage,
-        AWS_REGION: cdk.Stack.of(this).region,
+        ALLOWED_ORIGINS: allowOrigins.join(','),
+        CORS_ALLOW_HEADERS: 'authorization,content-type',
+        CORS_ALLOW_METHODS: 'GET,POST,PUT,DELETE,OPTIONS',
+        MAIN_TABLE_NAME: mainTable.tableName,
+        STUDY_TABLE_NAME: studyTable.tableName,
         S3_BUCKET_NAME: documentsBucket.bucketName,
         SUMMARIZE_SQS_QUEUE_URL: summarizeQueue.queueUrl,
         JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
@@ -130,51 +147,51 @@ export class EchoAiApiStack extends cdk.Stack {
     // API Lambdas
     const auth = {
       signup: new nodejs.NodejsFunction(this, 'AuthSignupFn', {
-        entry: 'services/api/src/lambda/auth.ts',
+        entry: lambdaEntry('auth.ts'),
         handler: 'signup',
         ...nodejsFnDefaults,
       }),
       login: new nodejs.NodejsFunction(this, 'AuthLoginFn', {
-        entry: 'services/api/src/lambda/auth.ts',
+        entry: lambdaEntry('auth.ts'),
         handler: 'login',
         ...nodejsFnDefaults,
       }),
       me: new nodejs.NodejsFunction(this, 'AuthMeFn', {
-        entry: 'services/api/src/lambda/auth.ts',
+        entry: lambdaEntry('auth.ts'),
         handler: 'me',
         ...nodejsFnDefaults,
       }),
     };
 
     const presign = new nodejs.NodejsFunction(this, 'PresignCreateFn', {
-      entry: 'services/api/src/lambda/presign.ts',
+      entry: lambdaEntry('presign.ts'),
       handler: 'createPresign',
       ...nodejsFnDefaults,
     });
 
     const documents = {
       create: new nodejs.NodejsFunction(this, 'DocumentsCreateFn', {
-        entry: 'services/api/src/lambda/documents.ts',
+        entry: lambdaEntry('documents.ts'),
         handler: 'create',
         ...nodejsFnDefaults,
       }),
       list: new nodejs.NodejsFunction(this, 'DocumentsListFn', {
-        entry: 'services/api/src/lambda/documents.ts',
+        entry: lambdaEntry('documents.ts'),
         handler: 'list',
         ...nodejsFnDefaults,
       }),
       get: new nodejs.NodejsFunction(this, 'DocumentsGetFn', {
-        entry: 'services/api/src/lambda/documents.ts',
+        entry: lambdaEntry('documents.ts'),
         handler: 'get',
         ...nodejsFnDefaults,
       }),
       remove: new nodejs.NodejsFunction(this, 'DocumentsRemoveFn', {
-        entry: 'services/api/src/lambda/documents.ts',
+        entry: lambdaEntry('documents.ts'),
         handler: 'remove',
         ...nodejsFnDefaults,
       }),
       summarize: new nodejs.NodejsFunction(this, 'DocumentsSummarizeFn', {
-        entry: 'services/api/src/lambda/documents.ts',
+        entry: lambdaEntry('documents.ts'),
         handler: 'summarize',
         ...nodejsFnDefaults,
       }),
@@ -182,37 +199,37 @@ export class EchoAiApiStack extends cdk.Stack {
 
     const study = {
       list: new nodejs.NodejsFunction(this, 'StudyListFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'list',
         ...nodejsFnDefaults,
       }),
       create: new nodejs.NodejsFunction(this, 'StudyCreateFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'create',
         ...nodejsFnDefaults,
       }),
       update: new nodejs.NodejsFunction(this, 'StudyUpdateFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'update',
         ...nodejsFnDefaults,
       }),
       remove: new nodejs.NodejsFunction(this, 'StudyRemoveFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'remove',
         ...nodejsFnDefaults,
       }),
       quiz: new nodejs.NodejsFunction(this, 'StudyQuizFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'quiz',
         ...nodejsFnDefaults,
       }),
       search: new nodejs.NodejsFunction(this, 'StudySearchFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'search',
         ...nodejsFnDefaults,
       }),
       analyze: new nodejs.NodejsFunction(this, 'StudyAnalyzeFn', {
-        entry: 'services/api/src/lambda/study.ts',
+        entry: lambdaEntry('study.ts'),
         handler: 'analyze',
         ...nodejsFnDefaults,
       }),
@@ -223,6 +240,7 @@ export class EchoAiApiStack extends cdk.Stack {
     documentsBucket.grantReadWrite(documents.get);
     documentsBucket.grantReadWrite(documents.remove);
     documentsBucket.grantRead(documents.summarize);
+    documentsBucket.grantReadWrite(presign);
 
     // DynamoDB permissions (coarse but simple)
     [
@@ -292,39 +310,34 @@ export class EchoAiApiStack extends cdk.Stack {
     const studyId = studyRes.addResource('{id}');
     studyId.addMethod('PUT', new apigw.LambdaIntegration(study.update));
     studyId.addMethod('DELETE', new apigw.LambdaIntegration(study.remove));
-    api.root
-      .addResource('study')
+    studyRes
       .addResource('quiz')
       .addMethod('POST', new apigw.LambdaIntegration(study.quiz));
-    api.root
-      .addResource('study')
+    studyRes
       .addResource('search')
       .addMethod('POST', new apigw.LambdaIntegration(study.search));
-    api.root
-      .addResource('study')
+    studyRes
       .addResource('analyze')
       .addMethod('POST', new apigw.LambdaIntegration(study.analyze));
 
     // AI Processor (SQS consumer)
     const aiProcessor = new nodejs.NodejsFunction(this, 'AiProcessorFn', {
-      entry: 'services/ai-processor/src/handler.ts',
+      ...nodejsFnDefaults,
+      entry: join(projectRoot, 'services', 'ai-processor', 'src', 'handler.ts'),
       handler: 'handler',
-      runtime: lambda.Runtime.NODEJS_20_X,
-      architecture: lambda.Architecture.X86_64,
       memorySize: 768,
       timeout: cdk.Duration.seconds(60),
-      bundling: { minify: true, tsconfig: 'tsconfig.base.json' },
+      bundling: {
+        ...nodejsFnDefaults.bundling,
+        minify: true,
+        tsconfig: tsconfigPath,
+      },
       environment: {
-        APP_STAGE: stage,
-        AWS_REGION: cdk.Stack.of(this).region,
-        S3_BUCKET_NAME: documentsBucket.bucketName,
+        ...nodejsFnDefaults.environment,
         JWT_SECRET: secret.secretValueFromJson('JWT_SECRET').unsafeUnwrap(),
         GEMINI_API_KEY: secret
           .secretValueFromJson('GEMINI_API_KEY')
           .unsafeUnwrap(),
-        SUMMARIZE_USE_MOCK: stage === 'local' ? 'true' : 'false',
-        SECRETS_NAME: secret.secretName,
-        SECRETS_ARN: secret.secretArn,
       },
     });
     aiProcessor.addEventSource(
@@ -345,7 +358,8 @@ export class EchoAiApiStack extends cdk.Stack {
     Object.values(study).forEach((fn) => secret.grantRead(fn));
     secret.grantRead(aiProcessor);
 
-    new cdk.CfnOutput(this, 'ApiEndpoint', { value: api.url });
+    const apiUrl = api.url.endsWith('/') ? api.url.slice(0, -1) : api.url;
+    new cdk.CfnOutput(this, 'ApiEndpoint', { value: apiUrl });
     new cdk.CfnOutput(this, 'DocumentsBucketName', {
       value: documentsBucket.bucketName,
     });

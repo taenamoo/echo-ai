@@ -37,6 +37,7 @@ gha-creds-*.json
 services/ai-processor/dist
 services/api/dist
 infra/dist
+infra/cdk.out
 /build
 
 # misc

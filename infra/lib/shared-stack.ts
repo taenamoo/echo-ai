@@ -19,35 +19,29 @@ export class EchoAiSharedStack extends cdk.Stack {
       autoDeleteObjects: true,
     });
 
-    // Use L1 CfnOriginAccessControl for broad CDK compatibility
-    const oac = new cloudfront.CfnOriginAccessControl(this, 'OAC', {
-      originAccessControlConfig: {
-        name: `${id}-oac`,
-        description: 'OAC for S3 UI bucket',
-        originAccessControlOriginType: 's3',
-        signingBehavior: 'always',
-        signingProtocol: 'sigv4',
-      },
-    });
-
     const dist = new cloudfront.Distribution(this, 'UiDistribution', {
       defaultBehavior: {
-        origin: new origins.S3Origin(uiBucket, {
-          originAccessIdentity: undefined,
-        }),
+        origin: new origins.S3Origin(uiBucket),
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
       },
       defaultRootObject: 'index.html',
       comment: `${id} SPA distribution`,
+      errorResponses: [
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(5),
+        },
+        {
+          httpStatus: 404,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.minutes(5),
+        },
+      ],
     });
-
-    // Attach OAC (low-level override)
-    const cfnDist = dist.node.defaultChild as cloudfront.CfnDistribution;
-    cfnDist.addPropertyOverride(
-      'DistributionConfig.Origins.0.OriginAccessControlId',
-      oac.attrId
-    );
 
     this.uiBucketName = uiBucket.bucketName;
     this.uiCloudFrontDomainName = dist.distributionDomainName;

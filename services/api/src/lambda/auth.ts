@@ -1,10 +1,6 @@
-import type { APIGatewayProxyEventV2, APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
-import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { generateAccessToken, hashPassword, validatePasswordPolicy, verifyTokenDetailed } from '@echo-ai/auth';
-import { ok, created, badRequest, unauthorized, serverError, parseJson, getAuthToken } from './http';
-import { randomUUID } from 'crypto';
+import type { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { loginHandler, signupHandler, meHandler } from '@echo-ai/api-core';
+import { toApiGatewayResponse } from './utils/response';
 
 export const signup: APIGatewayProxyHandlerV2 = async (event) => {
   const res = await signupHandler({
@@ -14,7 +10,7 @@ export const signup: APIGatewayProxyHandlerV2 = async (event) => {
     query: event.queryStringParameters as any,
     body: event.body || null,
   });
-  return { statusCode: res.status, headers: res.headers, body: JSON.stringify(res.body ?? {}) };
+  return toApiGatewayResponse(res, event.headers ?? {});
 };
 
 export const login: APIGatewayProxyHandlerV2 = async (event) => {
@@ -27,11 +23,7 @@ export const login: APIGatewayProxyHandlerV2 = async (event) => {
     body: event.body || null,
   } as const;
   const res = await loginHandler(req);
-  return {
-    statusCode: res.status,
-    headers: { 'content-type': 'application/json; charset=utf-8', ...(res.headers || {}) },
-    body: JSON.stringify(res.body ?? {}),
-  };
+  return toApiGatewayResponse(res, event.headers ?? {});
 };
 
 export const me: APIGatewayProxyHandlerV2 = async (event) => {
@@ -40,7 +32,7 @@ export const me: APIGatewayProxyHandlerV2 = async (event) => {
     path: event.rawPath || '/me',
     headers: event.headers as any,
   });
-  return { statusCode: res.status, headers: res.headers, body: JSON.stringify(res.body ?? {}) };
+  return toApiGatewayResponse(res, event.headers ?? {});
 };
 
 // json409 no longer used; shared handlers return proper structure

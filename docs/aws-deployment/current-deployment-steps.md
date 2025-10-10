@@ -14,6 +14,7 @@
    - `APP_STAGE=develop`, `ALLOWED_ORIGINS` 후보(`https://develop.example.com,http://localhost:5173`)를 준비한다.
 
 2. **명령 실행**
+
    ```bash
    pnpm run deploy:aws -- \
      --stage develop \
@@ -29,6 +30,7 @@
    - 콘솔에 출력된 API Endpoint, CloudFront Domain, Secrets ARN을 메모한다.
 
    명령 예(Phase 1만 단독 실행하고 싶은 경우):
+
    ```bash
    pnpm run deploy:aws -- \
      --stage develop \
@@ -43,6 +45,7 @@
    - 스크립트가 Phase 1에서 확보한 API Endpoint를 `VITE_API_BASE_URL`로 주입해 SPA를 자동으로 재빌드한다. `--skip-build`를 사용했다면 동일한 값을 수동으로 주입해 빌드한다. 【F:scripts/deploy/aws-manual-deploy.sh†L198-L215】
 
    명령 예(수동 재빌드):
+
    ```bash
    API_ENDPOINT=$(aws cloudformation describe-stacks \
      --stack-name EchoAi-Api-develop \
@@ -58,6 +61,7 @@
    - 필요 시 `--update-secrets-twice`를 추가해 Phase 2에서도 Secrets를 다시 갱신할 수 있다. 【F:scripts/deploy/aws-manual-deploy.sh†L21-L24】【F:scripts/deploy/aws-manual-deploy.sh†L215-L220】
 
    명령 예(Phase 2만 단독 실행하고 싶은 경우):
+
    ```bash
    # Phase 1에서 이미 배포/부트스트랩이 끝났다고 가정
    # (idempotent 하게 Shared/API 스택을 다시 확인 후, SPA 동기화/무효화 수행)
