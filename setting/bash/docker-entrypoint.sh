@@ -50,6 +50,30 @@ EOF
   fi
 
   if [ "${#install_args[@]}" -gt 0 ]; then
+    # Ensure the workspace root dependencies are present as well because
+    # shared scripts like `pnpm run db:migrate` execute from the root package
+    # and rely on its direct dependencies (e.g. AWS SDK clients). Without the
+    # root filter those dependencies would be missing and the DynamoDB table
+    # migration would fail before any tables are created.
+    needs_root_filter=true
+    for ((i = 0; i < ${#install_args[@]}; i++)); do
+      if [ "${install_args[$i]}" = "--filter" ]; then
+        next=$((i + 1))
+        if [ $next -lt ${#install_args[@]} ]; then
+          case "${install_args[$next]}" in
+            "echo-ai"|"echo-ai..."|".")
+              needs_root_filter=false
+              break
+              ;;
+          esac
+        fi
+      fi
+    done
+
+    if [ "$needs_root_filter" = true ]; then
+      install_args+=(--filter "echo-ai")
+    fi
+
     echo "Running scoped pnpm install: pnpm install ${install_args[*]}"
     pnpm install "${install_args[@]}"
   else
