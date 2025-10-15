@@ -4,7 +4,82 @@
 if [ ! -d "/app/node_modules" ] || [ -z "$(ls -A /app/node_modules 2>/dev/null)" ] || [ ! -e "/app/node_modules/@echo-ai/config" ]; then
   echo "node_modules missing or empty. Running pnpm install..."
   pnpm config set store-dir .pnpm-store
-  pnpm install
+
+  # Full workspace installs have been getting OOM-killed inside local runtime containers.
+  # To keep memory usage predictable we only install the packages that the runtime actually needs.
+  # Determine the most appropriate install scope.
+  # Priority order:
+  #   1. Explicit override via PNPM_INSTALL_SCOPE (allows multiple filters separated by newlines)
+  #   2. Automatically derive from the pnpm command passed to the container (e.g. --filter <pkg>)
+  #   3. Fallback to full workspace install.
+
+  # shellcheck disable=SC2206
+  install_args=()
+
+  if [ -n "${PNPM_INSTALL_SCOPE:-}" ]; then
+    echo "Using PNPM_INSTALL_SCOPE from environment: ${PNPM_INSTALL_SCOPE}"
+    while IFS= read -r scope || [ -n "$scope" ]; do
+      [ -z "$scope" ] && continue
+      case "$scope" in
+        *"..."*) install_args+=(--filter "$scope") ;;
+        *) install_args+=(--filter "$scope...") ;;
+      esac
+    done <<EOF
+${PNPM_INSTALL_SCOPE}
+EOF
+  else
+    cmd_filter=""
+    if [ "$#" -gt 0 ] && [ "$1" = "pnpm" ]; then
+      prev=""
+      for arg in "$@"; do
+        if [ "$prev" = "--filter" ]; then
+          cmd_filter="$arg"
+          break
+        fi
+        prev="$arg"
+      done
+    fi
+
+    if [ -n "$cmd_filter" ]; then
+      echo "Derived pnpm filter from command: $cmd_filter"
+      case "$cmd_filter" in
+        *"..."*) install_args+=(--filter "$cmd_filter") ;;
+        *) install_args+=(--filter "$cmd_filter...") ;;
+      esac
+    fi
+  fi
+
+  if [ "${#install_args[@]}" -gt 0 ]; then
+    # Ensure the workspace root dependencies are present as well because
+    # shared scripts like `pnpm run db:migrate` execute from the root package
+    # and rely on its direct dependencies (e.g. AWS SDK clients). Without the
+    # root filter those dependencies would be missing and the DynamoDB table
+    # migration would fail before any tables are created.
+    needs_root_filter=true
+    for ((i = 0; i < ${#install_args[@]}; i++)); do
+      if [ "${install_args[$i]}" = "--filter" ]; then
+        next=$((i + 1))
+        if [ $next -lt ${#install_args[@]} ]; then
+          case "${install_args[$next]}" in
+            "echo-ai"|"echo-ai..."|".")
+              needs_root_filter=false
+              break
+              ;;
+          esac
+        fi
+      fi
+    done
+
+    if [ "$needs_root_filter" = true ]; then
+      install_args+=(--filter "echo-ai")
+    fi
+
+    echo "Running scoped pnpm install: pnpm install ${install_args[*]}"
+    pnpm install "${install_args[@]}"
+  else
+    echo "Running full workspace pnpm install"
+    pnpm install
+  fi
 fi
 
 # 0.1. export variables from .env.local into current shell for all subsequent commands
