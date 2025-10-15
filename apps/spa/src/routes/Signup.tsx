@@ -93,7 +93,7 @@ export default function Signup() {
             <button
               disabled={busy}
               type="submit"
-              className="w-full rounded-md bg-blue-600 text-white py-2 hover:bg-blue-700 disabled:opacity-50"
+              className="w-full mt-6 rounded-md bg-blue-600 text-white py-2 hover:bg-blue-700 disabled:opacity-50"
             >
               {busy ? '가입 중...' : '가입'}
             </button>
