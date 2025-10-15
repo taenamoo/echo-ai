@@ -11,8 +11,10 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ToastProvider>
       <UserProvider>
-        <SessionExpiredListener />
-        <RouterProvider router={router} />
+        <div className="app-shell">
+          <SessionExpiredListener />
+          <RouterProvider router={router} />
+        </div>
       </UserProvider>
     </ToastProvider>
   </React.StrictMode>

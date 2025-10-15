@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
+import Layout from '../components/Layout';
 import StatusBadge from '../components/StatusBadge';
 import { formatDate } from '../lib/format';
 import { useToast } from '../providers/ToastProvider';
@@ -84,43 +83,39 @@ export default function DocumentDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header />
-      <main className="container mx-auto px-6 py-8">
-        {loading ? (
-          <p className="text-gray-600">로딩 중...</p>
-        ) : error ? (
-          <p className="text-red-600">{error}</p>
-        ) : !detail ? (
-          <p className="text-gray-600">문서를 찾을 수 없습니다.</p>
-        ) : (
-          <div className="bg-white rounded-lg shadow p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">{detail.filename}</h2>
-                <p className="text-sm text-gray-500">ID: {detail.documentId} · 생성일: {formatDate(detail.createdAt || null)} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
-              </div>
-              <div className="space-x-2">
-                <Link to="/documents" aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className="inline-flex items-center gap-1 bg-white border text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400">⬅️ 목록</Link>
-                <button onClick={onDelete} aria-label="문서 삭제" title="삭제" className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">🗑 삭제</button>
-                <button onClick={onSummarize} aria-label="문서 요약 실행" title="요약 실행" disabled={summarizing || detail.status === 'PROCESSING'} className="inline-flex items-center gap-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-blue-500">
-                  {summarizing ? '⏳ 요약 중' : '📝 요약 실행'}
-                </button>
-              </div>
+    <Layout mainClassName="w-full max-w-5xl mx-auto px-6 py-8">
+      {loading ? (
+        <p className="text-gray-600">로딩 중...</p>
+      ) : error ? (
+        <p className="text-red-600">{error}</p>
+      ) : !detail ? (
+        <p className="text-gray-600">문서를 찾을 수 없습니다.</p>
+      ) : (
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">{detail.filename}</h2>
+              <p className="text-sm text-gray-500">ID: {detail.documentId} · 생성일: {formatDate(detail.createdAt || null)} · 상태: <StatusBadge status={detail.status || 'UPLOADED'} /></p>
             </div>
-
-            <div className="mt-4">
-              <h3 className="text-xl font-semibold text-gray-800 mb-2">요약 결과</h3>
-              {detail.summaryText ? (
-                <pre className="whitespace-pre-wrap text-gray-800 bg-gray-50 p-4 rounded border">{detail.summaryText}</pre>
-              ) : (
-                <p className="text-gray-600">요약 내용이 없습니다. 상단의 요약 실행을 눌러 생성하세요.</p>
-              )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Link to="/documents" aria-label="목록으로 돌아가기" title="목록으로 돌아가기" className="inline-flex items-center gap-1 bg-white border text-gray-700 py-2 px-4 rounded-md hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400">⬅️ 목록</Link>
+              <button onClick={onDelete} aria-label="문서 삭제" title="삭제" className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 focus-visible:ring-2 focus-visible:ring-gray-400">🗑 삭제</button>
+              <button onClick={onSummarize} aria-label="문서 요약 실행" title="요약 실행" disabled={summarizing || detail.status === 'PROCESSING'} className="inline-flex items-center gap-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:bg-gray-400 focus-visible:ring-2 focus-visible:ring-blue-500">
+                {summarizing ? '⏳ 요약 중' : '📝 요약 실행'}
+              </button>
             </div>
           </div>
-        )}
-      </main>
-      <Footer />
-    </div>
+
+          <div className="mt-4">
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">요약 결과</h3>
+            {detail.summaryText ? (
+              <pre className="whitespace-pre-wrap text-gray-800 bg-gray-50 p-4 rounded border">{detail.summaryText}</pre>
+            ) : (
+              <p className="text-gray-600">요약 내용이 없습니다. 상단의 요약 실행을 눌러 생성하세요.</p>
+            )}
+          </div>
+        </div>
+      )}
+    </Layout>
   );
 }

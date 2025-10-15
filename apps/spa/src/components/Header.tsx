@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiBase, me } from '../api';
+import { me } from '../api';
 
-export default function Header() {
+type HeaderProps = React.HTMLAttributes<HTMLElement>;
+
+const Header = React.forwardRef<HTMLElement, HeaderProps>(({ className = '', ...rest }, ref) => {
   const [authed, setAuthed] = useState<boolean>(!!localStorage.getItem('accessToken'));
   const [email, setEmail] = useState<string | null>(null);
 
@@ -32,7 +34,11 @@ export default function Header() {
     };
   }, []);
   return (
-    <header className="w-full border-b bg-white h-14 sticky top-0 z-10" style={{ ['--header-height' as any]: '56px' }}>
+    <header
+      ref={ref}
+      className={`w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-sm h-14 sticky top-0 z-20 ${className}`}
+      {...rest}
+    >
       <div className="mx-auto max-w-6xl px-4 h-full flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link to="/" className="font-semibold text-gray-800 flex items-center gap-2"><img src="/globe.svg" alt="Echo AI" width={20} height={20} /> Echo AI</Link>
@@ -56,4 +62,8 @@ export default function Header() {
       </div>
     </header>
   );
-}
+});
+
+Header.displayName = 'Header';
+
+export default Header;
