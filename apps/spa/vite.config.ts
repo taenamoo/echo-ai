@@ -12,4 +12,11 @@ export default defineConfig({
       port,
     },
   },
+  css: {
+    // either turn Lightning minification off…
+    lightningcss: { minify: false },
+
+    // …or force the classic minifier instead
+    // minify: 'esbuild',
+  },
 });

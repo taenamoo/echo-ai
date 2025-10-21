@@ -1,7 +1,7 @@
 import http from 'node:http';
 import { URL } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Auth, Documents, Presign, Study } from './index';
+import { Auth, Documents, Presign, Study, hrDocuments, chatHr } from './index';
 
 type Headers = Record<string, string | undefined>;
 
@@ -57,6 +57,7 @@ function routeKey(method: string, rawPath: string): string {
   if (rawPath === '/study/analyze' && method === 'POST') return 'POST /study/analyze';
   if (/^\/documents\/[^\/]+$/.test(rawPath) && method === 'GET') return 'GET /documents/{id}';
   if (/^\/documents\/[^\/]+$/.test(rawPath) && method === 'DELETE') return 'DELETE /documents/{id}';
+  if (rawPath === '/chatHr' && method === 'POST') return 'POST /chatHr';
   if (/^\/documents\/[^\/]+\/summarize$/.test(rawPath) && method === 'POST') return 'POST /documents/{id}/summarize';
   return `${method} ${rawPath}`;
 }
@@ -152,6 +153,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       send(res, r.statusCode || 200, r.body, r.headers);
       return;
     }
+    if (rk === 'GET /hr-documents') {
+      const r = await (hrDocuments.list as any)(baseEvent);
+      send(res, r.statusCode || 200, r.body, r.headers);
+      return;
+    }
     if (rk === 'GET /documents/{id}') {
       const id = rawPath.split('/')[2];
       const r = await (Documents.get as any)({ ...baseEvent, pathParameters: { id } });
@@ -161,6 +167,11 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
     if (rk === 'DELETE /documents/{id}') {
       const id = rawPath.split('/')[2];
       const r = await (Documents.remove as any)({ ...baseEvent, pathParameters: { id } });
+      send(res, r.statusCode || 200, r.body, r.headers);
+      return;
+    }
+    if (rk === 'POST /chatHr') {
+      const r = await (chatHr.chat as any)(baseEvent);
       send(res, r.statusCode || 200, r.body, r.headers);
       return;
     }

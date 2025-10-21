@@ -57,8 +57,8 @@ export async function presign(filename: string, contentType: string, size?: numb
   return api('/documents/presign', { method: 'POST', json: { filename, contentType, size } });
 }
 
-export async function createDocument(key: string, file: File) {
-  return api('/documents', { method: 'POST', json: { key, filename: file.name, filetype: file.type || null, filesize: file.size || null } });
+export async function createDocument(key: string, file: File, tags?: string[]) {
+  return api('/documents', { method: 'POST', json: { key, filename: file.name, filetype: file.type || null, filesize: file.size || null, tags } });
 }
 
 export async function listDocuments() {
@@ -67,6 +67,10 @@ export async function listDocuments() {
 
 export async function summarize(id: string) {
   return api(`/documents/${id}/summarize`, { method: 'POST' });
+}
+
+export async function chatHr(question: string) {
+  return api('/chatHr', { method: 'POST', json: { question } });
 }
 
 export async function login(email: string, password: string) {

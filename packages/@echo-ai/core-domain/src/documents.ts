@@ -11,6 +11,23 @@ export type DocumentItem = {
   filesize: number | null;
   status: DocumentStatus;
   summaryText?: string;
+  tags?: string[];
+  tagKey?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type DocumentContentItem = {
+  PK: string;
+  SK: string;
+  userId: string;
+  documentId: string;
+  contentS3Key: string | null;
+  summaryText: string | null;
+  textLength?: number | null;
+  chunkSize?: number | null;
+  chunkCount?: number | null;
+  lastProcessedAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 };

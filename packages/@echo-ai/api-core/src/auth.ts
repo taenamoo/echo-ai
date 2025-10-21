@@ -1,5 +1,5 @@
 import type { NormalizedRequest, NormalizedResponse } from './types';
-import { dynamoDbDocumentClient, MAIN_TABLE_NAME } from '@echo-ai/aws-clients';
+import { dynamoDbDocumentClient, ACCOUNTS_TABLE_NAME } from '@echo-ai/aws-clients';
 import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { comparePassword, generateAccessToken, verifyTokenDetailed } from '@echo-ai/auth';
 import { LoginSchema, SignupSchema } from './schemas';
@@ -15,7 +15,7 @@ export async function loginHandler(req: NormalizedRequest): Promise<NormalizedRe
     const body = result.data;
 
     const query = new QueryCommand({
-      TableName: MAIN_TABLE_NAME,
+      TableName: ACCOUNTS_TABLE_NAME,
       IndexName: 'EmailIndex',
       KeyConditionExpression: 'email = :email',
       ExpressionAttributeValues: { ':email': body.email },
@@ -48,7 +48,7 @@ export async function signupHandler(req: NormalizedRequest): Promise<NormalizedR
     if (!check.ok) return badRequest(check.message || '비밀번호 정책을 충족하지 않습니다.');
 
     const exists = await dynamoDbDocumentClient.send(new QueryCommand({
-      TableName: MAIN_TABLE_NAME,
+      TableName: ACCOUNTS_TABLE_NAME,
       IndexName: 'EmailIndex',
       KeyConditionExpression: 'email = :email',
       ExpressionAttributeValues: { ':email': body.email },
@@ -59,7 +59,7 @@ export async function signupHandler(req: NormalizedRequest): Promise<NormalizedR
     const userId = randomUUID();
     const hashedPassword = await hashPassword(body.password);
     await dynamoDbDocumentClient.send(new PutCommand({
-      TableName: MAIN_TABLE_NAME,
+      TableName: ACCOUNTS_TABLE_NAME,
       Item: {
         PK: `USER#${userId}`,
         SK: `PROFILE#${userId}`,
@@ -88,7 +88,7 @@ export async function meHandler(req: NormalizedRequest): Promise<NormalizedRespo
     const payload = res.payload as any;
     const userId = payload?.userId as string;
     const get = await dynamoDbDocumentClient.send(new GetCommand({
-      TableName: MAIN_TABLE_NAME,
+      TableName: ACCOUNTS_TABLE_NAME,
       Key: { PK: `USER#${userId}`, SK: `PROFILE#${userId}` },
     }));
     if (!get.Item) return ok({ userId });

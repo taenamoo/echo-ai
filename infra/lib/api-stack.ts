@@ -50,18 +50,43 @@ export class EchoAiApiStack extends cdk.Stack {
     ) as string[];
 
     // DynamoDB
-    const mainTable = new dynamodb.Table(this, 'MainTable', {
-      tableName: withStage('EchoAI-Main-Table'),
+    const accountsTable = new dynamodb.Table(this, 'AccountsTable', {
+      tableName: withStage('EchoAI-Accounts'),
       partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
       sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
-    mainTable.addGlobalSecondaryIndex({
+    accountsTable.addGlobalSecondaryIndex({
       indexName: 'EmailIndex',
       partitionKey: { name: 'email', type: dynamodb.AttributeType.STRING },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+
+    const documentsTable = new dynamodb.Table(this, 'DocumentsTable', {
+      tableName: withStage('EchoAI-Documents'),
+      partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+    documentsTable.addGlobalSecondaryIndex({
+      indexName: 'TagsIndex',
+      partitionKey: { name: 'tagKey', type: dynamodb.AttributeType.STRING },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    const documentContentTable = new dynamodb.Table(
+      this,
+      'DocumentContentTable',
+      {
+        tableName: withStage('EchoAI-DocumentContent'),
+        partitionKey: { name: 'PK', type: dynamodb.AttributeType.STRING },
+        sortKey: { name: 'SK', type: dynamodb.AttributeType.STRING },
+        billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      },
+    );
 
     const studyTable = new dynamodb.Table(this, 'StudyTable', {
       tableName: withStage('EchoAi-Studies'),
@@ -130,7 +155,9 @@ export class EchoAiApiStack extends cdk.Stack {
         ALLOWED_ORIGINS: allowOrigins.join(','),
         CORS_ALLOW_HEADERS: 'authorization,content-type',
         CORS_ALLOW_METHODS: 'GET,POST,PUT,DELETE,OPTIONS',
-        MAIN_TABLE_NAME: mainTable.tableName,
+        ACCOUNTS_TABLE_NAME: accountsTable.tableName,
+        DOCUMENTS_TABLE_NAME: documentsTable.tableName,
+        DOCUMENT_CONTENT_TABLE_NAME: documentContentTable.tableName,
         STUDY_TABLE_NAME: studyTable.tableName,
         S3_BUCKET_NAME: documentsBucket.bucketName,
         SUMMARIZE_SQS_QUEUE_URL: summarizeQueue.queueUrl,
@@ -235,24 +262,61 @@ export class EchoAiApiStack extends cdk.Stack {
       }),
     };
 
+    const chatHr = {
+      chat: new nodejs.NodejsFunction(this, 'ChatHrFn', {
+        entry: lambdaEntry('chatHr.ts'),
+        handler: 'chat',
+        ...nodejsFnDefaults,
+      }),
+    };
+
+    const hrDocuments = {
+      list: new nodejs.NodejsFunction(this, 'HrDocumentsListFn', {
+        entry: lambdaEntry('hrDocuments.ts'),
+        handler: 'list',
+        ...nodejsFnDefaults,
+      }),
+    };
+
     // S3 permissions
     documentsBucket.grantReadWrite(documents.create);
     documentsBucket.grantReadWrite(documents.get);
     documentsBucket.grantReadWrite(documents.remove);
     documentsBucket.grantRead(documents.summarize);
     documentsBucket.grantReadWrite(presign);
+    documentsBucket.grantRead(chatHr.chat);
 
-    // DynamoDB permissions (coarse but simple)
+    // DynamoDB permissions
+    [auth.signup, auth.login, auth.me].forEach((fn) => {
+      accountsTable.grantReadWriteData(fn);
+    });
+
     [
-      auth.signup,
-      auth.login,
-      auth.me,
-      presign,
       documents.create,
       documents.list,
       documents.get,
       documents.remove,
       documents.summarize,
+      hrDocuments.list,
+      chatHr.chat,
+    ].forEach((fn) => {
+      documentsTable.grantReadWriteData(fn);
+    });
+
+    [
+      documents.create,
+      documents.get,
+      documents.remove,
+      documents.summarize,
+      chatHr.chat,
+    ].forEach((fn) => {
+      documentContentTable.grantReadWriteData(fn);
+    });
+    [documents.list, hrDocuments.list].forEach((fn) => {
+      documentContentTable.grantReadData(fn);
+    });
+
+    [
       study.list,
       study.create,
       study.update,
@@ -261,7 +325,6 @@ export class EchoAiApiStack extends cdk.Stack {
       study.search,
       study.analyze,
     ].forEach((fn) => {
-      mainTable.grantReadWriteData(fn);
       studyTable.grantReadWriteData(fn);
     });
 
@@ -320,6 +383,12 @@ export class EchoAiApiStack extends cdk.Stack {
       .addResource('analyze')
       .addMethod('POST', new apigw.LambdaIntegration(study.analyze));
 
+    const chatHrRes = api.root.addResource('chatHr');
+    chatHrRes.addMethod('POST', new apigw.LambdaIntegration(chatHr.chat));
+
+    const hrDocumentsRes = api.root.addResource('hr-documents');
+    hrDocumentsRes.addMethod('GET', new apigw.LambdaIntegration(hrDocuments.list));
+
     // AI Processor (SQS consumer)
     const aiProcessor = new nodejs.NodejsFunction(this, 'AiProcessorFn', {
       ...nodejsFnDefaults,
@@ -344,8 +413,9 @@ export class EchoAiApiStack extends cdk.Stack {
       new lambdaEventSources.SqsEventSource(summarizeQueue, { batchSize: 5 })
     );
 
-    documentsBucket.grantRead(aiProcessor);
-    mainTable.grantReadWriteData(aiProcessor);
+    documentsBucket.grantReadWrite(aiProcessor);
+    documentsTable.grantReadWriteData(aiProcessor);
+    documentContentTable.grantReadWriteData(aiProcessor);
     summarizeQueue.grantSendMessages(documents.summarize);
 
     // Outputs
@@ -356,6 +426,8 @@ export class EchoAiApiStack extends cdk.Stack {
     secret.grantRead(presign);
     Object.values(documents).forEach((fn) => secret.grantRead(fn));
     Object.values(study).forEach((fn) => secret.grantRead(fn));
+    secret.grantRead(chatHr.chat);
+    secret.grantRead(hrDocuments.list);
     secret.grantRead(aiProcessor);
 
     const apiUrl = api.url.endsWith('/') ? api.url.slice(0, -1) : api.url;

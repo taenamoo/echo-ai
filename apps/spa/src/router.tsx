@@ -7,6 +7,7 @@ import Logout from './routes/Logout';
 import Documents from './routes/Documents';
 import DocumentDetail from './routes/DocumentDetail';
 import Study from './routes/Study';
+import ChatHr from './routes/ChatHr';
 
 function isAuthed() {
   return !!localStorage.getItem('accessToken');
@@ -35,6 +36,11 @@ export const router = createBrowserRouter([
   { path: '/study', element: (
       <Protected>
         <Study />
+      </Protected>
+    ) },
+  { path: '/chatHr', element: (
+      <Protected>
+        <ChatHr />
       </Protected>
     ) },
 ]);

@@ -216,13 +216,13 @@ export default function Documents() {
 
   return (
     <Layout>
-      <div className="w-full max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8 space-y-6">
+      <div className="w-full max-w-3xl sm:max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl mx-auto bg-white rounded-lg shadow-lg p-6 md:p-8 mb-4">
         <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold text-center text-gray-800">
           AI 문서 요약 서비스
         </h2>
 
-        <form onSubmit={onSubmit} className="space-y-6">
-          <div>
+        <form onSubmit={onSubmit} className="mb-4">
+          <div className="mb-4">
             <label
               htmlFor="file-upload"
               className="block text-sm font-medium text-gray-700 mb-2"
