@@ -504,11 +504,11 @@ export default function ChatHrPage() {
           )}
         </section>
         <main ref={chatContainerRef} className="flex-grow p-6 overflow-y-auto">
-          <div className="space-y-6">
+          <div className="mb-4">
             {conversation.map((msg, index) => (
               <div
                 key={index}
-                className={`flex items-start gap-3 ${
+                className={`flex items-start gap-3 mb-2 ${
                   msg.role === 'user' ? 'justify-end' : 'justify-start'
                 }`}
               >
@@ -546,7 +546,7 @@ export default function ChatHrPage() {
               </div>
             ))}
             {isLoading && (
-              <div className="flex items-start gap-3 justify-start">
+              <div className="flex items-start gap-3 justify-start mb-2">
                 <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 shrink-0">
                   AI
                 </div>

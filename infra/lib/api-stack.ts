@@ -312,6 +312,9 @@ export class EchoAiApiStack extends cdk.Stack {
     ].forEach((fn) => {
       documentContentTable.grantReadWriteData(fn);
     });
+    [documents.list, hrDocuments.list].forEach((fn) => {
+      documentContentTable.grantReadData(fn);
+    });
 
     [
       study.list,

@@ -28,10 +28,10 @@ export default function Signup() {
 
   return (
     <Layout mainClassName="flex items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md mb-4">
         <div className="rounded-lg border bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold mb-4 text-gray-900">회원가입</h2>
-          <form onSubmit={onSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="mb-4">
             <div>
               <label
                 htmlFor="signup-email"

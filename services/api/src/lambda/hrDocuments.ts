@@ -6,7 +6,7 @@ import { listDocumentsHandler } from '@echo-ai/api-core';
 import { toApiGatewayResponse } from './utils/response';
 
 export const list: APIGatewayProxyHandlerV2 = async (
-  event: APIGatewayProxyEventV2,
+  event: APIGatewayProxyEventV2
 ) => {
   const res = await listDocumentsHandler({
     method: event.requestContext?.http?.method || 'GET',
@@ -14,7 +14,7 @@ export const list: APIGatewayProxyHandlerV2 = async (
     headers: event.headers as any,
     query: {
       ...event.queryStringParameters,
-      tags: ['hr'], // Always filter by 'hr' tag
+      // tags: ['hr'], // Always filter by 'hr' tag
     } as any,
   });
   return toApiGatewayResponse(res, event.headers ?? {});

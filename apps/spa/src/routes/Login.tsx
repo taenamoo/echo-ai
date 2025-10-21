@@ -38,7 +38,7 @@ export default function Login() {
 
   return (
     <Layout mainClassName="flex items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
+      <div className="w-full max-w-md mb-4">
         {showExpiredBanner && (
           <div
             className="rounded-md border border-yellow-400 bg-yellow-50 text-yellow-800 px-4 py-3"

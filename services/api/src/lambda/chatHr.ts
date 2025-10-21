@@ -1,15 +1,12 @@
-
-import type { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
+import type {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResultV2,
+} from 'aws-lambda';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { BatchGetCommand } from '@aws-sdk/lib-dynamodb';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-import {
-  ok,
-  badRequest,
-  serverError,
-  unauthorized,
-  type NormalizedResponse,
-} from '@echo-ai/api-core';
+import { ok, badRequest, serverError, unauthorized } from '@echo-ai/api-core';
+import type { NormalizedResponse } from '@echo-ai/api-core';
 import { verifyTokenDetailed } from '@echo-ai/auth';
 import {
   dynamoDbDocumentClient,
@@ -19,45 +16,60 @@ import {
 } from '@echo-ai/aws-clients';
 import { getConfig, hydrateConfigFromSecrets } from '@echo-ai/config';
 import { streamToBuffer } from '@echo-ai/documents';
+import { toApiGatewayResponse } from './utils/response';
 
 // --- Reusable helpers ---
 
-const CHAT_MODEL = process.env.CHAT_MODEL || 'gemini-2.5-flash';
+const CHAT_MODEL = process.env.CHAT_MODEL || 'gemini-2.5-flash-lite';
 const MAX_SELECTED_DOCUMENTS = Number(process.env.CHAT_MAX_DOCUMENTS || 3);
 const CHUNK_SIZE = Number(process.env.CHAT_CHUNK_SIZE || 600) || 600;
 const MAX_CHUNKS_PER_DOCUMENT = Number(
-  process.env.CHAT_MAX_CHUNKS_PER_DOC || 3,
+  process.env.CHAT_MAX_CHUNKS_PER_DOC || 3
 );
 const MAX_CONTEXT_CHUNKS =
   Number(process.env.CHAT_MAX_CONTEXT_CHUNKS || 6) || 6;
 let genAI: GoogleGenerativeAI | null = null;
 
-function getCorsHeaders(event: APIGatewayProxyEvent): Record<string, string> {
-  const allowOrigin = process.env.CORS_ALLOW_ORIGIN || 'http://localhost:5173';
-  return {
-    'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Allow-Headers': 'authorization,content-type',
-  };
-}
-
-function toApiGatewayResponse(res: NormalizedResponse, headers: Record<string, string>): APIGatewayProxyResult {
-    return {
-        statusCode: res.status,
-        headers: { ...headers, ...res.headers },
-        body: JSON.stringify(res.body),
-    };
-}
-
-function getAuth(headers: Record<string, string | undefined>): { ok: true; userId: string } | { ok: false; res: NormalizedResponse } {
+function getAuth(
+  headers: Record<string, string | undefined>
+): { ok: true; userId: string } | { ok: false; res: NormalizedResponse } {
   const auth = headers['authorization'] || headers['Authorization'];
-  if (!auth) return { ok: false, res: unauthorized('인증 토큰이 없습니다.') } as const;
+  if (!auth)
+    return { ok: false, res: unauthorized('인증 토큰이 없습니다.') } as const;
   const token = auth.startsWith('Bearer ') ? auth.substring(7) : auth;
   const r = verifyTokenDetailed(token);
-  if (!r.ok) return { ok: false, res: unauthorized(r.reason === 'expired' ? '만료된 토큰입니다.' : '유효하지 않은 토큰입니다.') } as const;
+  if (!r.ok)
+    return {
+      ok: false,
+      res: unauthorized(
+        r.reason === 'expired'
+          ? '만료된 토큰입니다.'
+          : '유효하지 않은 토큰입니다.'
+      ),
+    } as const;
   const userId = (r.payload as any)?.userId as string;
-  if (!userId) return { ok: false, res: unauthorized('유효하지 않은 토큰입니다.') } as const;
+  if (!userId)
+    return {
+      ok: false,
+      res: unauthorized('유효하지 않은 토큰입니다.'),
+    } as const;
   return { ok: true, userId } as const;
+}
+
+function respond(
+  res: NormalizedResponse,
+  requestHeaders: Record<string, string | undefined>
+): APIGatewayProxyResultV2 {
+  return toApiGatewayResponse(
+    {
+      ...res,
+      headers: {
+        ...(res.headers || {}),
+        'Access-Control-Allow-Credentials': 'true',
+      },
+    },
+    requestHeaders
+  );
 }
 
 async function ensureGenAIClient(): Promise<GoogleGenerativeAI> {
@@ -73,26 +85,25 @@ async function ensureGenAIClient(): Promise<GoogleGenerativeAI> {
   return genAI;
 }
 
-
 // --- Chat Handler with Context from Summaries ---
 
 export const chat = async (
-  event: APIGatewayProxyEvent,
-): Promise<APIGatewayProxyResult> => {
-  const corsHeaders = getCorsHeaders(event);
+  event: APIGatewayProxyEvent
+): Promise<APIGatewayProxyResultV2> => {
+  const requestHeaders = event.headers ?? {};
   try {
     await hydrateConfigFromSecrets();
     const authResult = getAuth(event.headers);
     if (!authResult.ok) {
-      return toApiGatewayResponse(authResult.res, corsHeaders);
+      return respond(authResult.res, requestHeaders);
     }
     const { userId } = authResult;
     const config = getConfig();
 
     if (!event.body) {
-      return toApiGatewayResponse(
+      return respond(
         badRequest('질문과 문서 정보를 포함한 본문이 필요합니다.'),
-        corsHeaders,
+        requestHeaders
       );
     }
 
@@ -100,17 +111,18 @@ export const chat = async (
     try {
       payload = JSON.parse(event.body);
     } catch {
-      return toApiGatewayResponse(
+      return respond(
         badRequest('요청 본문이 JSON 형식이 아닙니다.'),
-        corsHeaders,
+        requestHeaders
       );
     }
 
-    const questionInput = typeof payload?.question === 'string' ? payload.question.trim() : '';
+    const questionInput =
+      typeof payload?.question === 'string' ? payload.question.trim() : '';
     if (!questionInput) {
-      return toApiGatewayResponse(
+      return respond(
         badRequest('질문(question)은 비어 있지 않은 문자열이어야 합니다.'),
-        corsHeaders,
+        requestHeaders
       );
     }
 
@@ -121,42 +133,46 @@ export const chat = async (
       new Set(
         docIdsInput
           .map((id: unknown) => (typeof id === 'string' ? id.trim() : ''))
-          .filter((id) => id.length > 0),
-      ),
+          .filter((id) => id.length > 0)
+      )
     );
     if (normalizedDocIds.length === 0) {
-      return toApiGatewayResponse(
+      return respond(
         badRequest('documentIds 배열에 최소 한 개의 문서를 지정해야 합니다.'),
-        corsHeaders,
+        requestHeaders
       );
     }
     if (normalizedDocIds.length > MAX_SELECTED_DOCUMENTS) {
-      return toApiGatewayResponse(
-        badRequest(`문서는 최대 ${MAX_SELECTED_DOCUMENTS}개까지 선택할 수 있습니다.`),
-        corsHeaders,
+      return respond(
+        badRequest(
+          `문서는 최대 ${MAX_SELECTED_DOCUMENTS}개까지 선택할 수 있습니다.`
+        ),
+        requestHeaders
       );
     }
 
     const documents = await loadSelectedDocuments(
       userId,
       normalizedDocIds,
-      config.s3BucketName,
+      config.s3BucketName
     );
     if (documents.length !== normalizedDocIds.length) {
-      return toApiGatewayResponse(
-        badRequest('선택한 문서 중 처리할 수 없는 문서가 있습니다. 상태를 확인하세요.'),
-        corsHeaders,
+      return respond(
+        badRequest(
+          '선택한 문서 중 처리할 수 없는 문서가 있습니다. 상태를 확인하세요.'
+        ),
+        requestHeaders
       );
     }
 
     const selectedChunks = selectRelevantChunks(questionInput, documents);
     if (selectedChunks.length === 0) {
-      return toApiGatewayResponse(
+      return respond(
         ok({
           reply: '제공된 문서에서는 관련 정보를 찾을 수 없습니다.',
           sources: [],
         }),
-        corsHeaders,
+        requestHeaders
       );
     }
 
@@ -173,11 +189,11 @@ export const chat = async (
       snippet: chunk.text.slice(0, 400),
     }));
 
-    return toApiGatewayResponse(ok({ reply, sources }), corsHeaders);
+    return respond(ok({ reply, sources }), requestHeaders);
   } catch (error) {
     console.error('Chat handler error:', error);
     const res = serverError('채팅 처리 중 오류가 발생했습니다.');
-    return toApiGatewayResponse(res, corsHeaders);
+    return respond(res, requestHeaders);
   }
 };
 
@@ -199,7 +215,7 @@ type SelectedChunk = {
 async function loadSelectedDocuments(
   userId: string,
   documentIds: string[],
-  bucketName: string,
+  bucketName: string
 ): Promise<LoadedDocument[]> {
   if (!documentIds.length) return [];
 
@@ -214,19 +230,18 @@ async function loadSelectedDocuments(
         RequestItems: {
           [DOCUMENTS_TABLE_NAME]: { Keys: keys },
         },
-      }),
+      })
     ),
     dynamoDbDocumentClient.send(
       new BatchGetCommand({
         RequestItems: {
           [DOCUMENT_CONTENT_TABLE_NAME]: { Keys: keys },
         },
-      }),
+      })
     ),
   ]);
 
-  const metaItems =
-    (metaRes.Responses?.[DOCUMENTS_TABLE_NAME] as any[]) ?? [];
+  const metaItems = (metaRes.Responses?.[DOCUMENTS_TABLE_NAME] as any[]) ?? [];
   const contentItems =
     (contentRes.Responses?.[DOCUMENT_CONTENT_TABLE_NAME] as any[]) ?? [];
 
@@ -269,7 +284,7 @@ async function fetchDocumentText(bucket: string, key: string): Promise<string> {
       new GetObjectCommand({
         Bucket: bucket,
         Key: key,
-      }),
+      })
     );
     const buffer = await streamToBuffer(res.Body as any);
     return buffer.toString('utf8');
@@ -281,7 +296,7 @@ async function fetchDocumentText(bucket: string, key: string): Promise<string> {
 
 function selectRelevantChunks(
   question: string,
-  documents: LoadedDocument[],
+  documents: LoadedDocument[]
 ): SelectedChunk[] {
   const tokens = tokenize(question);
   const allChunks: SelectedChunk[] = [];
@@ -296,10 +311,7 @@ function selectRelevantChunks(
       score: scoreChunk(tokens, text),
     }));
     scored.sort((a, b) => b.score - a.score);
-    const limit = Math.min(
-      Math.max(1, MAX_CHUNKS_PER_DOCUMENT),
-      scored.length,
-    );
+    const limit = Math.min(Math.max(1, MAX_CHUNKS_PER_DOCUMENT), scored.length);
     const top = scored.slice(0, limit);
     if (top.length === 0 && scored.length > 0) {
       top.push(scored[0]);
@@ -308,10 +320,7 @@ function selectRelevantChunks(
   }
 
   allChunks.sort((a, b) => b.score - a.score);
-  const maxChunks = Math.max(
-    1,
-    Math.min(MAX_CONTEXT_CHUNKS, allChunks.length),
-  );
+  const maxChunks = Math.max(1, Math.min(MAX_CONTEXT_CHUNKS, allChunks.length));
   return allChunks.slice(0, maxChunks);
 }
 
@@ -381,14 +390,14 @@ function scoreChunk(tokens: string[], chunk: string): number {
 function buildPrompt(
   question: string,
   documents: LoadedDocument[],
-  chunks: SelectedChunk[],
+  chunks: SelectedChunk[]
 ): string {
   const docSummaries = documents
     .map(
       (doc) =>
         `- ${doc.filename} (ID: ${doc.documentId}) 요약: ${
           doc.summaryText ? doc.summaryText : '요약 없음'
-        }`,
+        }`
     )
     .join('\n');
 
@@ -397,7 +406,7 @@ function buildPrompt(
       (chunk, index) =>
         `### 출처 ${index + 1}\n문서명: ${chunk.filename}\n문서 ID: ${
           chunk.documentId
-        }\n청크 번호: ${chunk.chunkIndex + 1}\n내용:\n${chunk.text}`,
+        }\n청크 번호: ${chunk.chunkIndex + 1}\n내용:\n${chunk.text}`
     )
     .join('\n\n');
 

@@ -27,7 +27,7 @@ type SummarizeMessage = {
 
 type PartialBatchResponse = { batchItemFailures: { itemIdentifier: string }[] };
 
-const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-2.5-flash';
+const SUMMARIZE_MODEL = process.env.SUMMARIZE_MODEL || 'gemini-2.5-flash-lite';
 const SUMMARIZE_TIMEOUT_MS = Number(process.env.SUMMARIZE_TIMEOUT_MS || 25000);
 const SUMMARIZE_MAX_CHARS = Number(process.env.SUMMARIZE_MAX_CHARS || 20000);
 const SUMMARIZE_MAX_OUTPUT_TOKENS = Number(
