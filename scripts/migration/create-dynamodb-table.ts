@@ -65,11 +65,18 @@ async function main() {
       { AttributeName: 'PK', AttributeType: 'S' },
       { AttributeName: 'SK', AttributeType: 'S' },
       { AttributeName: 'email', AttributeType: 'S' },
+      { AttributeName: 'tags', AttributeType: 'S' },
     ],
     [
       {
         IndexName: 'EmailIndex',
         KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+        ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
+      },
+      {
+        IndexName: 'TagsIndex',
+        KeySchema: [{ AttributeName: 'tags', KeyType: 'HASH' }],
         Projection: { ProjectionType: 'ALL' },
         ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
       },

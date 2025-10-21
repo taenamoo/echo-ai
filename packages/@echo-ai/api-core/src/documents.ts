@@ -13,7 +13,7 @@ import { ok, created, accepted, badRequest, unauthorized, forbidden, notFound, s
 
 // Use shared HTTP helpers to unify error format
 
-function getAuth(headers: Record<string, string | undefined>): { ok: true; userId: string } | { ok: false; res: NormalizedResponse } {
+export function getAuth(headers: Record<string, string | undefined>): { ok: true; userId: string } | { ok: false; res: NormalizedResponse } {
   const auth = headers['authorization'] || headers['Authorization'];
   if (!auth) return { ok: false, res: unauthorized('인증 토큰이 없습니다.') } as const;
   const token = auth.startsWith('Bearer ') ? auth.substring(7) : auth;
@@ -50,6 +50,9 @@ export async function createDocumentHandler(req: NormalizedRequest): Promise<Nor
       status: 'UPLOADED',
       createdAt: new Date().toISOString(),
     } as any;
+    if (body.tags && Array.isArray(body.tags) && body.tags.length > 0) {
+      item.tags = body.tags;
+    }
     await dynamoDbDocumentClient.send(new PutCommand({ TableName: MAIN_TABLE_NAME, Item: item }));
     return created({ documentId });
   } catch (e) {

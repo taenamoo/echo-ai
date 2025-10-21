@@ -30,6 +30,9 @@ const Footer = React.forwardRef<HTMLElement, FooterProps>(
               <a href="/study" className="text-gray-600 hover:underline">
                 학습
               </a>
+              <a href="/chatHr" className="text-gray-600 hover:underline">
+                HR챗봇
+              </a>
             </div>
           </div>
         </div>

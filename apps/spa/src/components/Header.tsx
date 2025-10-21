@@ -45,6 +45,7 @@ const Header = React.forwardRef<HTMLElement, HeaderProps>(({ className = '', ...
           <nav className="hidden sm:flex items-center gap-3 text-sm text-gray-700">
             <Link to="/documents" className="hover:underline">문서</Link>
             <Link to="/study" className="hover:underline">스터디</Link>
+            <Link to="/chatHr" className="hover:underline">HR챗봇</Link>
           </nav>
         </div>
         <div className="flex items-center gap-3 text-sm">

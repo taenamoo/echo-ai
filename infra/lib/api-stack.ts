@@ -235,12 +235,29 @@ export class EchoAiApiStack extends cdk.Stack {
       }),
     };
 
+    const chatHr = {
+      chat: new nodejs.NodejsFunction(this, 'ChatHrFn', {
+        entry: lambdaEntry('chatHr.ts'),
+        handler: 'chat',
+        ...nodejsFnDefaults,
+      }),
+    };
+
+    const hrDocuments = {
+      list: new nodejs.NodejsFunction(this, 'HrDocumentsListFn', {
+        entry: lambdaEntry('hrDocuments.ts'),
+        handler: 'list',
+        ...nodejsFnDefaults,
+      }),
+    };
+
     // S3 permissions
     documentsBucket.grantReadWrite(documents.create);
     documentsBucket.grantReadWrite(documents.get);
     documentsBucket.grantReadWrite(documents.remove);
     documentsBucket.grantRead(documents.summarize);
     documentsBucket.grantReadWrite(presign);
+    documentsBucket.grantRead(chatHr.chat);
 
     // DynamoDB permissions (coarse but simple)
     [
@@ -260,6 +277,8 @@ export class EchoAiApiStack extends cdk.Stack {
       study.quiz,
       study.search,
       study.analyze,
+      chatHr.chat,
+      hrDocuments.list,
     ].forEach((fn) => {
       mainTable.grantReadWriteData(fn);
       studyTable.grantReadWriteData(fn);
@@ -320,6 +339,12 @@ export class EchoAiApiStack extends cdk.Stack {
       .addResource('analyze')
       .addMethod('POST', new apigw.LambdaIntegration(study.analyze));
 
+    const chatHrRes = api.root.addResource('chatHr');
+    chatHrRes.addMethod('POST', new apigw.LambdaIntegration(chatHr.chat));
+
+    const hrDocumentsRes = api.root.addResource('hr-documents');
+    hrDocumentsRes.addMethod('GET', new apigw.LambdaIntegration(hrDocuments.list));
+
     // AI Processor (SQS consumer)
     const aiProcessor = new nodejs.NodejsFunction(this, 'AiProcessorFn', {
       ...nodejsFnDefaults,
@@ -356,6 +381,8 @@ export class EchoAiApiStack extends cdk.Stack {
     secret.grantRead(presign);
     Object.values(documents).forEach((fn) => secret.grantRead(fn));
     Object.values(study).forEach((fn) => secret.grantRead(fn));
+    secret.grantRead(chatHr.chat);
+    secret.grantRead(hrDocuments.list);
     secret.grantRead(aiProcessor);
 
     const apiUrl = api.url.endsWith('/') ? api.url.slice(0, -1) : api.url;
