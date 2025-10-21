@@ -1,15 +1,28 @@
-// [추가] dotenv를 사용하여 .env.local 파일의 환경 변수를 불러옵니다.
 import 'dotenv/config';
 import { resolve } from 'path';
+import {
+  CreateTableCommand,
+  DynamoDBClient,
+  ListTablesCommand,
+  type GlobalSecondaryIndex,
+} from '@aws-sdk/client-dynamodb';
 
 require('dotenv').config({ path: resolve(process.cwd(), '.env.local') });
 
+const stageRaw = process.env.APP_STAGE || process.env.STAGE || 'develop';
+const stageId = stageRaw.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+const stageSuffix = stageId.length > 0 ? stageId : 'default';
+const withStage = (base: string) => `${base}-${stageSuffix}`;
 
-import { CreateTableCommand, DynamoDBClient, ListTablesCommand } from '@aws-sdk/client-dynamodb';
-
-// [수정] 스크립트 내에서 테이블 이름을 직접 정의하여 의존성을 제거합니다.
-const MAIN_TABLE_NAME = 'EchoAI-Main-Table';
-const STUDY_TABLE_NAME = 'EchoAi-Studies';
+const ACCOUNTS_TABLE_NAME =
+  process.env.ACCOUNTS_TABLE_NAME || withStage('EchoAI-Accounts');
+const DOCUMENTS_TABLE_NAME =
+  process.env.DOCUMENTS_TABLE_NAME || withStage('EchoAI-Documents');
+const DOCUMENT_CONTENT_TABLE_NAME =
+  process.env.DOCUMENT_CONTENT_TABLE_NAME ||
+  withStage('EchoAI-DocumentContent');
+const STUDY_TABLE_NAME =
+  process.env.STUDY_TABLE_NAME || withStage('EchoAi-Studies');
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'ap-northeast-2',
@@ -20,10 +33,17 @@ const client = new DynamoDBClient({
   },
 });
 
-async function createTableIfNotExists(tableName: string, keySchema: any[], attributeDefinitions: any[], gsis: any[] = []) {
-  // tableName이 유효한지 확인합니다.
+async function createTableIfNotExists(
+  tableName: string,
+  keySchema: any[],
+  attributeDefinitions: any[],
+  gsis: GlobalSecondaryIndex[] = [],
+) {
   if (!tableName) {
-    console.error("Error: Table name is undefined. Skipping table creation.");
+    console.error(
+      'Error: Table name is undefined. Skipping table creation for schema:',
+      keySchema,
+    );
     return;
   }
   try {
@@ -54,9 +74,8 @@ async function createTableIfNotExists(tableName: string, keySchema: any[], attri
 async function main() {
   console.log('Starting migration to create DynamoDB tables...');
 
-  // 1. EchoAI-Main-Table 생성
   await createTableIfNotExists(
-    MAIN_TABLE_NAME,
+    ACCOUNTS_TABLE_NAME,
     [
       { AttributeName: 'PK', KeyType: 'HASH' },
       { AttributeName: 'SK', KeyType: 'RANGE' },
@@ -65,7 +84,6 @@ async function main() {
       { AttributeName: 'PK', AttributeType: 'S' },
       { AttributeName: 'SK', AttributeType: 'S' },
       { AttributeName: 'email', AttributeType: 'S' },
-      { AttributeName: 'tags', AttributeType: 'S' },
     ],
     [
       {
@@ -74,29 +92,58 @@ async function main() {
         Projection: { ProjectionType: 'ALL' },
         ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
       },
+    ],
+  );
+
+  await createTableIfNotExists(
+    DOCUMENTS_TABLE_NAME,
+    [
+      { AttributeName: 'PK', KeyType: 'HASH' },
+      { AttributeName: 'SK', KeyType: 'RANGE' },
+    ],
+    [
+      { AttributeName: 'PK', AttributeType: 'S' },
+      { AttributeName: 'SK', AttributeType: 'S' },
+      { AttributeName: 'tagKey', AttributeType: 'S' },
+    ],
+    [
       {
         IndexName: 'TagsIndex',
-        KeySchema: [{ AttributeName: 'tags', KeyType: 'HASH' }],
+        KeySchema: [{ AttributeName: 'tagKey', KeyType: 'HASH' }],
         Projection: { ProjectionType: 'ALL' },
         ProvisionedThroughput: { ReadCapacityUnits: 1, WriteCapacityUnits: 1 },
       },
-    ]
+    ],
   );
 
-  // 2. EchoAi-Studies 테이블 생성
+  await createTableIfNotExists(
+    DOCUMENT_CONTENT_TABLE_NAME,
+    [
+      { AttributeName: 'PK', KeyType: 'HASH' },
+      { AttributeName: 'SK', KeyType: 'RANGE' },
+    ],
+    [
+      { AttributeName: 'PK', AttributeType: 'S' },
+      { AttributeName: 'SK', AttributeType: 'S' },
+    ],
+  );
+
   await createTableIfNotExists(
     STUDY_TABLE_NAME,
     [
-        { AttributeName: 'user_id', KeyType: 'HASH' },
-        { AttributeName: 'study_id', KeyType: 'RANGE' },
+      { AttributeName: 'user_id', KeyType: 'HASH' },
+      { AttributeName: 'study_id', KeyType: 'RANGE' },
     ],
     [
-        { AttributeName: 'user_id', AttributeType: 'S' },
-        { AttributeName: 'study_id', AttributeType: 'S' },
-    ]
+      { AttributeName: 'user_id', AttributeType: 'S' },
+      { AttributeName: 'study_id', AttributeType: 'S' },
+    ],
   );
 
   console.log('DynamoDB migration finished.');
 }
 
-main();
+main().catch((err) => {
+  console.error('Migration script failed.', err);
+  process.exit(1);
+});
