@@ -168,7 +168,7 @@ account="${AWS_ACCOUNT_ID:-}"
 if [[ -z "$account" ]]; then
   echo "Resolving AWS account id via STS..."
   if ! account=$(aws sts get-caller-identity --query Account --output text 2>/dev/null); then
-    echo "Error: Unable to determine AWS account id. Ensure 'aws sts get-caller-identity' works with your credentials." >&2
+    echo "Error: Unable to determine AWS account id. Ensure 'aws sts get-caller-identity' works with your credentials (e.g. run 'aws configure' or 'aws sso login' beforehand)." >&2
     exit 1
   fi
 fi

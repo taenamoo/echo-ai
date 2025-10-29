@@ -79,6 +79,22 @@
    - 명령 종료 후 요약된 출력(API Endpoint, CloudFront Domain 등)을 기반으로 `.env.production` 또는 호스팅 환경 변수에 반영한다. 【F:scripts/deploy/aws-manual-deploy.sh†L120-L137】【F:scripts/deploy/aws-manual-deploy.sh†L188-L196】
    - `docs/aws-deployment/current-deployment-steps.md`의 4~5장 절차에 따라 Secrets, 정적 자산, CloudFront, API 기능을 점검한다.
 
+### SPA만 재배포해야 할 때
+
+- Lambda/API는 최신 상태이고 정적 자산만 교체하면 되는 경우 `--spa-only` 옵션을 사용한다. 스크립트는 CloudFormation에서 기존 S3/CloudFront 출력을 읽어온 뒤, 필요하면 SPA를 다시 빌드하고(기존 API Endpoint를 자동 주입) 자산 동기화·무효화를 수행한다. 【F:scripts/deploy/aws-manual-deploy.sh†L90-L164】【F:scripts/deploy/aws-manual-deploy.sh†L297-L340】
+- 기본 실행 예시는 다음과 같다.
+
+  ```bash
+  pnpm run deploy:aws -- \
+    --stage develop \
+    --region ap-northeast-2 \
+    --spa-only
+  ```
+
+  - `--skip-build`을 함께 넘기면 기존 `apps/spa/dist`를 그대로 사용하고, `--skip-spa-upload` 또는 `--skip-invalidation`으로 개별 동작을 생략할 수 있다. 【F:scripts/deploy/aws-manual-deploy.sh†L108-L158】【F:scripts/deploy/aws-manual-deploy.sh†L318-L339】
+  - `--spa-only` 모드에서는 Secrets 업데이트 옵션이 무시되므로 민감정보를 변경하려면 일반 배포 또는 Phase 1을 다시 실행한다. 【F:scripts/deploy/aws-manual-deploy.sh†L321-L337】
+  - 선행 조건: `EchoAi-Shared-<stage>`와 `EchoAi-Api-<stage>` 스택이 이미 존재해야 하며, CloudFormation 출력에 `UiBucketName`이 포함되어 있어야 한다. 값이 비어 있으면 스크립트는 오류와 함께 종료한다. 【F:scripts/deploy/aws-manual-deploy.sh†L308-L345】【F:scripts/deploy/aws-manual-deploy.sh†L420-L459】
+
 ## 0. 참고 자료와 현재 상태 점검
 
 - **현행 아키텍처 개요**: Lambda 단일 코드베이스, Secrets Manager 하이드레이션, 비동기 요약 흐름, Next.js API 제거 상황을 확인한다. 【F:docs/architecture/current-system.md†L1-L73】
