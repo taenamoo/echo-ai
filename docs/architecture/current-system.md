@@ -3,18 +3,18 @@
 본 문서는 단계 4(단순화) 반영 이후의 실제 동작 상태를 정리한다. 세부 변경 사항은 `docs/architecture/step-04-simplification-done.md`, 전환 계획은 `docs/architecture/current-to-todo-transition-plan.md`과 목표 구조 `docs/architecture/todo-system.md`를 참고한다.
 
 ## 1. 배포 및 실행 환경
-- 런타임: Next.js 15 앱이 존재하지만, 서버 기능은 Lambda 핸들러(`services/api/src/lambda/*`)를 단일 소스로 두고 로컬 HTTP 게이트웨이에서 직접 호출한다.
-- 로컬 호스팅: Docker Compose로 LocalStack(S3,SQS), DynamoDB Local, `api-local`(게이트웨이, 8787), SPA(5173)를 기동한다.
-- 운영 가정: 아직 Next.js 서버 단일 프로세스 가정(서버리스 정식 배포는 목표 단계에서 진행).
-- 소스 구조: `apps/web`(Next 앱), `apps/spa`(정적 SPA), 공통 로직은 `packages/@echo-ai/*` 워크스페이스에 위치.
+- 런타임: 프런트엔드는 React 18 + Vite 기반 SPA(`apps/spa`)가 단일 진입점이며, 서버 기능은 Lambda 핸들러(`services/api/src/lambda/*`)를 단일 소스로 두고 API Gateway 이벤트와 호환되도록 구성한다.
+- 로컬 호스팅: Docker Compose로 LocalStack(S3, SQS), DynamoDB Local, `api-local`(게이트웨이, 8787), SPA(5173)를 기동하여 전체 스택을 시뮬레이션한다.
+- 운영 가정: 정적 SPA를 CloudFront/S3에 배포하고, API는 Lambda + API Gateway 조합으로 실행한다. 서버리스 정식 배포 자동화는 목표 단계에서 진행한다.
+- 소스 구조: `apps/spa`가 UI를 담당하고, 공통 로직은 `packages/@echo-ai/*` 워크스페이스에 위치한다. Next.js 기반 `apps/web`는 제거되었으며, 레거시 의존성은 더 이상 빌드·배포 경로에 포함되지 않는다.
 
 ## 2. 애플리케이션 구성 요소
 | 계층 | 주요 역할 | 핵심 자산 |
 | --- | --- | --- |
-| 프레젠테이션 | Next.js(App Router) + 정적 SPA(Vite) 병행 운영(전환 과도기) | `apps/web/src/app/**`, `apps/spa/**` |
+| 프레젠테이션 | React + Vite SPA 단일 애플리케이션 | `apps/spa/**` |
 | 로컬 HTTP 게이트웨이 | API Gateway v2 이벤트 에뮬레이션으로 Lambda 핸들러를 HTTP에 마운트 | `services/api/src/local-http.ts` |
 | Lambda 핸들러 | 인증/문서/프리사인/요약/스터디 기능 구현(단일 소스) | `services/api/src/lambda/*` |
-| 프런트엔드 HTTP 클라이언트 | Axios 인스턴스가 API Gateway 배포 URL로 직접 호출 | `apps/web/src/lib/axios.ts` |
+| 프런트엔드 HTTP 클라이언트 | Fetch 기반 래퍼가 API Gateway 배포 URL을 직접 호출 | `apps/spa/src/api.ts` |
 | 도메인/계약 | 인증, 문서, 요약 큐잉, AWS 클라이언트, Zod 스키마/검증 | `packages/@echo-ai/{auth,documents,aws-clients,api-core}` |
 | 비동기 워커 | 요약 전용 SQS 컨슈머 Lambda(로컬 실행 가능) | `services/ai-processor` |
 
@@ -38,24 +38,29 @@
 4) `services/ai-processor`가 S3에서 원문을 읽어 텍스트 추출·요약 후 DynamoDB 상태/결과를 갱신한다.
 5) 목록/상세 API가 요약 상태와 결과를 조회하여 화면에 반영한다.
 
-## 5. 배포 및 운영 현황
+## 5. 개발 환경 및 도구 체계
+- 컨테이너 개발: `.devcontainer` 정의를 통해 VS Code/`devcontainer` 확장에서 Docker 기반 개발 환경을 자동 구성한다. Node 런타임, pnpm, AWS CLI, LocalStack 클라이언트가 사전 설치된다.
+- 로컬 통합: `docker-compose.yml`을 사용해 LocalStack, DynamoDB Local, `api-local`, SPA 서버를 동시에 기동한다. devcontainer 내부에서 `pnpm dev --filter @echo-ai/app-spa`로 프런트엔드 개발 서버를 실행한다.
+- 테스트 워크플로: devcontainer와 호스트 양쪽에서 `pnpm lint`, `pnpm test`를 실행하도록 스크립트가 정리되어 있으며, 컨테이너 내부 경로와 호스트 경로 동기화를 위해 볼륨 마운트 전략을 문서화했다.
+
+## 6. 배포 및 운영 현황
 - 버전 관리: pnpm 모노레포. 패키지/서비스 분리 유지.
-- 로컬 구동: `docker-compose.yml`로 LocalStack/DynamoDB Local/`api-local`/SPA를 함께 실행.
+- 로컬 구동: `docker-compose.yml`로 LocalStack/DynamoDB Local/`api-local`/SPA를 함께 실행한다.
 - CI/CD: 계획 단계. 브랜치·경로 기반 분기는 목표 문서에 정의(실구현 전).
 - IaC: CDK 스택이 Stage 접미사 규칙과 Lambda 번들 스크립트에 맞춰 정비되었으며, CI/CD 파이프라인은 아직 미구현이다.
-- 모니터링: Next.js 기본 로깅 중심, CloudWatch 연동은 목표 단계에서 구성.
+- 모니터링: Lambda/Step Functions 로그 중심으로 CloudWatch에 적재하는 구성을 목표 단계에서 정비한다.
 
-## 6. 확인된 격차 및 리스크
+## 7. 확인된 격차 및 리스크
 - DynamoDB 사용자 프로필 SK가 `PROFILE#<userId>`로 저장되어 스키마 문서의 `PROFILE`(정적 키)와 불일치.
 - Secrets Manager 연동은 적용되었지만, 키 회전 자동화·권한 위임 절차가 미정이라 운영 가이드가 필요하다.
 - 운영 배포 파이프라인/스택, CloudWatch 모니터링, 태깅 전략 등은 후속 작업으로 남아 있다.
 
-## 7. 구조적 복잡성 요약(전환 중인 지점)
-- 프런트엔드 이중 운영: Next.js App Router와 정적 SPA가 병행되어 UX/라우팅 통합이 필요하다.
+## 8. 구조적 복잡성 요약(전환 중인 지점)
+- 프런트엔드 마이그레이션: Next.js 제거로 프레임워크 간 충돌은 해소되었지만, SPA 기준의 라우팅/상태 관리 패턴이 모든 페이지에 재정비되는 중이다.
 - 비동기 기본 전환: 동기/비동기 혼재에서 비동기 기본으로 이동했고, 동기는 옵트인 플래그로만 허용된다.
 - 업로드 경로 수렴: 서버사이드 업로드는 기본 폐기되어 정책 일관성이 개선되었으나, 레거시 호출 차단에 따른 호환성 확인 필요.
 - 비밀 운영 절차 미정: Secrets 회전·권한 위임 자동화는 후속 과제로 남아 있다.
 
-## 8. 참고(전환 방향 고정)
+## 9. 참고(전환 방향 고정)
 - 목표 구조와 배포 흐름: `docs/architecture/todo-system.md`
 - 단계별 계획과 진행: `docs/architecture/current-to-todo-transition-plan.md`, `docs/architecture/step-04-simplification-plan.md`, `docs/architecture/step-04-simplification-done.md`
