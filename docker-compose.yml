@@ -1,33 +1,55 @@
-version: '3.8'
 # Docker Compose configuration for Echo AI application with DynamoDB Local
 services:
-  app:
+  api-local:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: echo-ai-app
+    container_name: echo-ai-api-local
     ports:
-      - '3000:3000'
-    volumes:
-      - .:/app
-      - /app/node_modules
-      - /app/.next
-      - /app/.pnpm-store
+      - '8787:8787'
     env_file:
       - .env.local
     environment:
       - NODE_ENV=development
-      # HOT RELOAD
       - WATCHPACK_POLLING=true
       - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
-      # app-specific overrides can remain here if needed
-      #- DYNAMODB_ENDPOINT=http://dynamodb-local:8998
-    dns:
-      - 8.8.8.8
+      - PORT=8787
+      - CORS_ALLOW_ORIGIN=http://localhost:5173
     depends_on:
       - dynamodb-local
       - localstack
       - dynamodb-init
+    command: ['pnpm', '--filter', '@echo-ai/service-api', 'run', 'serve']
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.pnpm-store
+    networks:
+      - echo-ai-net
+
+  spa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: echo-ai-spa
+    ports:
+      - '5173:5173'
+    env_file:
+      - .env.local
+    environment:
+      - NODE_ENV=development
+      - WATCHPACK_POLLING=true
+      - NODE_EXTRA_CA_CERTS=/usr/local/share/ca-certificates/corporate-ca.crt
+      - VITE_DEV_PORT=5173
+      - VITE_API_BASE_URL=http://localhost:8787
+      - SKIP_DB_MIGRATE=true
+    command: ['pnpm', '--filter', '@echo-ai/app-spa', 'run', 'dev']
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/.pnpm-store
+    depends_on:
+      - api-local
     networks:
       - echo-ai-net
 

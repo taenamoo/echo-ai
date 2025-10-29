@@ -1,0 +1,114 @@
+name: Dev Deploy (UI and API)
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch: {}
+
+jobs:
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      ui: ${{ steps.filter.outputs.ui }}
+      api: ${{ steps.filter.outputs.api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            ui:
+              - 'apps/spa/**'
+            api:
+              - 'services/api/**'
+              - 'services/ai-processor/**'
+              - 'packages/**'
+              - 'infra/**'
+
+  ui:
+    name: UI (SPA) Deploy
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: Read Stack Outputs (API/Shared)
+        run: |
+          retry() { n=0; until [ "$n" -ge 6 ]; do "$@" && break; n=$((n+1)); echo "retry $n"; sleep 5; done; }
+          API_URL=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Api-develop --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
+          UI_BUCKET=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiBucketName'].OutputValue" --output text)
+          CF_ID=$(retry aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDistributionId'].OutputValue" --output text)
+          if [ -z "$API_URL" ] || [ -z "$UI_BUCKET" ]; then echo "Failed to read stack outputs"; exit 1; fi
+          echo "VITE_API_BASE_URL=$API_URL" >> $GITHUB_ENV
+          echo "UI_BUCKET=$UI_BUCKET" >> $GITHUB_ENV
+          echo "CF_DISTRIBUTION_ID=$CF_ID" >> $GITHUB_ENV
+      - name: Build SPA
+        run: pnpm --filter @echo-ai/app-spa build
+        env:
+          VITE_API_BASE_URL: ${{ env.VITE_API_BASE_URL }}
+      - name: Upload to S3
+        run: aws s3 sync apps/spa/dist s3://$UI_BUCKET --delete
+      - name: CloudFront Invalidate
+        if: env.CF_DISTRIBUTION_ID != ''
+        run: aws cloudfront create-invalidation --distribution-id $CF_DISTRIBUTION_ID --paths '/*'
+
+  api:
+    name: API + Infra Deploy (CDK)
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      - name: Install workspace deps
+        run: pnpm install --frozen-lockfile
+      - name: Install infra deps
+        run: pnpm -C infra install --frozen-lockfile
+      - name: Run contract tests (optional)
+        run: pnpm test:contracts
+        env:
+          TEST_TOKEN: ${{ secrets.DEV_TEST_TOKEN }}
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      - name: Read CF Domain for CORS
+        run: |
+          CF_DOMAIN=$(aws cloudformation describe-stacks --stack-name EchoAi-Shared-develop --query "Stacks[0].Outputs[?OutputKey=='UiCloudFrontDomain'].OutputValue" --output text)
+          echo "ALLOWED_ORIGINS=https://$CF_DOMAIN,http://localhost:5173" >> $GITHUB_ENV
+      - name: CDK Synth
+        run: pnpm -C infra run synth
+        env:
+          APP_STAGE: develop
+      - name: CDK Deploy
+        run: pnpm -C infra run deploy
+        env:
+          APP_STAGE: develop
+          ALLOWED_ORIGINS: ${{ env.ALLOWED_ORIGINS }}

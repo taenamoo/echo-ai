@@ -19,7 +19,7 @@ export default function AuthPage() {
     setIsLoading(true);
     setResult('요청 중...');
     try {
-      const response = await axios.post('/api/auth/signup', { email, password });
+      const response = await axios.post('/auth/signup', { email, password });
       if (response.data.accessToken) {
         localStorage.setItem('accessToken', response.data.accessToken);
         window.location.href = '/documents';
@@ -35,7 +35,7 @@ export default function AuthPage() {
     setIsLoading(true);
     setResult('요청 중...');
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
+      const response = await axios.post('/auth/login', { email, password });
       if (response.data.accessToken) {
         localStorage.setItem('accessToken', response.data.accessToken);
         window.location.href = '/documents';

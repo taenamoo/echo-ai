@@ -21,12 +21,24 @@ RUN apt-get install -y ca-certificates
 ## 3.3. Update CA Certificates
 RUN update-ca-certificates --fresh
 
+## 3.4. Install AWS CLI v2 and AWS CDK v2
+# - AWS CLI v2: official installer (requires curl + unzip)
+# - AWS CDK v2: global npm package for cdk commands
+RUN apt-get update \
+  && apt-get install -y curl unzip \
+  && curl -sSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "/tmp/awscliv2.zip" \
+  && unzip -q /tmp/awscliv2.zip -d /tmp \
+  && /tmp/aws/install \
+  && npm install -g aws-cdk@2 \
+  && rm -rf /var/lib/apt/lists/* /tmp/aws /tmp/awscliv2.zip
+
 ## 4. Install Dependencies
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 
 # Pre-copy workspace manifests to leverage pnpm caching
-COPY apps/web/package.json apps/web/
+COPY apps/spa/package.json apps/spa/
 COPY packages/@echo-ai/auth/package.json packages/@echo-ai/auth/
+COPY packages/@echo-ai/api-core/package.json packages/@echo-ai/api-core/
 COPY packages/@echo-ai/aws-clients/package.json packages/@echo-ai/aws-clients/
 COPY packages/@echo-ai/config/package.json packages/@echo-ai/config/
 COPY packages/@echo-ai/core-domain/package.json packages/@echo-ai/core-domain/

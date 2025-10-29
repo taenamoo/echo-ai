@@ -1,0 +1,147 @@
+name: Deploy develop to AWS
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  STAGE: develop
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  verify:
+    name: Verify build & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run auth tests
+        run: pnpm test:auth
+
+      - name: Run contract tests
+        run: pnpm test:contracts
+
+  deploy:
+    name: Deploy to AWS
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: develop
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Validate required secrets
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUMMARIZE_PROVIDER: ${{ secrets.SUMMARIZE_PROVIDER }}
+        run: |
+          set -euo pipefail
+          for var in JWT_SECRET GEMINI_API_KEY SUMMARIZE_PROVIDER; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Missing required secret: $var"
+              exit 1
+            fi
+          done
+
+      - name: Detect AWS credential mode
+        id: credential_mode
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${AWS_ROLE_TO_ASSUME:-}" ]; then
+            echo "mode=oidc" >> "$GITHUB_OUTPUT"
+          elif [ -n "${AWS_ACCESS_KEY_ID:-}" ] && [ -n "${AWS_SECRET_ACCESS_KEY:-}" ]; then
+            echo "mode=keys" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Set either AWS_ROLE_TO_ASSUME (OIDC) or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY secrets."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials (OIDC)
+        if: steps.credential_mode.outputs.mode == 'oidc'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (access keys)
+        if: steps.credential_mode.outputs.mode == 'keys'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Prepare secrets payload
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUMMARIZE_PROVIDER: ${{ secrets.SUMMARIZE_PROVIDER }}
+        run: |
+          set -euo pipefail
+          mkdir -p tmp/deploy
+          python - <<'PY'
+import json
+import os
+from pathlib import Path
+
+stage = os.environ.get("STAGE", "develop")
+payload = {
+    "JWT_SECRET": os.environ["JWT_SECRET"],
+    "GEMINI_API_KEY": os.environ["GEMINI_API_KEY"],
+    "SUMMARIZE_PROVIDER": os.environ.get("SUMMARIZE_PROVIDER", "gemini"),
+}
+path = Path("tmp/deploy") / f"{stage}-secrets.json"
+path.write_text(json.dumps(payload), encoding="utf-8")
+PY
+
+      - name: Deploy with helper script
+        env:
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS_DEVELOP }}
+        run: |
+          set -euo pipefail
+          secrets_file="tmp/deploy/${STAGE}-secrets.json"
+          args=(--stage "${STAGE}" --region "${AWS_REGION}" --secrets-file "${secrets_file}" --two-phase)
+          if [ -n "${ALLOWED_ORIGINS:-}" ]; then
+            args+=(--allowed-origins "${ALLOWED_ORIGINS}")
+          fi
+          pnpm run deploy:aws -- "${args[@]}"
+
+      - name: Clean secrets payload
+        if: always()
+        run: |
+          rm -f "tmp/deploy/${STAGE}-secrets.json"

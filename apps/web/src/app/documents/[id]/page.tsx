@@ -38,15 +38,14 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     }
   }, [router]);
 
-  const fetchDetail = useCallback(async (): Promise<DocDetail | null> => {
-    if (!accessToken) return null;
-    try {
-      setLoading(true);
-      setError('');
-      const baseUrl = window.location.origin;
-      const res = await axios.get(`${baseUrl}/api/documents/${documentId}` , {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
+    const fetchDetail = useCallback(async (): Promise<DocDetail | null> => {
+      if (!accessToken) return null;
+      try {
+        setLoading(true);
+        setError('');
+        const res = await axios.get(`/documents/${documentId}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
       setDetail(res.data);
       return res.data as DocDetail;
     } catch (e: any) {
@@ -77,8 +76,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
     try {
       setSummarizing(true);
       setError('');
-      const baseUrl = window.location.origin;
-      const res = await axios.post(`${baseUrl}/api/documents/${documentId}/summarize`, {}, {
+      const res = await axios.post(`/documents/${documentId}/summarize`, {}, {
         headers: { Authorization: `Bearer ${accessToken}` },
         validateStatus: () => true,
       });
@@ -104,8 +102,7 @@ export default function DocumentDetailPage({ params }: { params: Promise<{ id: s
   const handleDelete = async () => {
     if (!accessToken) return;
     try {
-      const baseUrl = window.location.origin;
-      await axios.delete(`${baseUrl}/api/documents/${documentId}`, {
+      await axios.delete(`/documents/${documentId}`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       push({ message: '문서가 삭제되었습니다.', type: 'success' });

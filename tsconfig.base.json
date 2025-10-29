@@ -11,7 +11,13 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@echo-ai/*": [
+        "packages/@echo-ai/*/src",
+        "packages/@echo-ai/*/src/index.ts"
+      ]
+    }
   },
   "exclude": ["node_modules"]
 }

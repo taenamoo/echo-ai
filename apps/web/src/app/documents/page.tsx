@@ -70,15 +70,15 @@ export default function DocumentsPage() {
     if (!accessToken) return;
     setLoadingList(true);
     try {
-      const baseUrl = window.location.origin;
-      const url = new URL(`${baseUrl}/api/documents`);
-      url.searchParams.set('limit', '20');
-      if (cursor) url.searchParams.set('cursor', cursor);
-      if (searchTerm) url.searchParams.set('q', searchTerm);
-      if (sortKey) url.searchParams.set('sortKey', sortKey);
-      if (sortDir) url.searchParams.set('sortDir', sortDir);
-      const res = await axios.get(url.toString(), {
-        headers: { 'Authorization': `Bearer ${accessToken}` }
+      const res = await axios.get('/documents', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        params: {
+          limit: 20,
+          ...(cursor ? { cursor } : {}),
+          ...(searchTerm ? { q: searchTerm } : {}),
+          sortKey,
+          sortDir,
+        },
       });
       const data = res.data as { items: any[]; nextCursor?: string };
       setItems(cursor ? [...items, ...(data.items || [])] : (data.items || []));
@@ -108,8 +108,7 @@ export default function DocumentsPage() {
     if (!accessToken) return;
     try {
       setSummarizingId(documentId);
-      const baseUrl = window.location.origin;
-      const res = await axios.post(`${baseUrl}/api/documents/${documentId}/summarize`, {}, {
+      const res = await axios.post(`/documents/${documentId}/summarize`, {}, {
         headers: { Authorization: `Bearer ${accessToken}` },
         validateStatus: () => true,
       });
@@ -157,7 +156,6 @@ export default function DocumentsPage() {
     setStatus('uploading');
 
     try {
-      const baseUrl = window.location.origin;
       // Sequentially process files
       for (let i = 0; i < files.length; i++) {
         const f = files.item(i)!;
@@ -169,7 +167,7 @@ export default function DocumentsPage() {
         }
         try {
           // 1) Presign 요청
-          const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
+          const presignRes = await axios.post('/documents/presign', {
             filename: f.name,
             contentType: f.type || 'application/octet-stream',
             size: f.size,
@@ -196,7 +194,7 @@ export default function DocumentsPage() {
           });
 
           // 3) 메타 저장
-          await axios.post(`${baseUrl}/api/documents`, {
+          await axios.post('/documents', {
             key,
             filename: f.name,
             filetype: f.type,
@@ -262,7 +260,6 @@ export default function DocumentsPage() {
     setFile(files.item(0) || null);
     setSelectedNames(arr.map(f => f.name));
     // Build a transient input-like object to reuse handler logic
-    const baseUrl = window.location.origin;
     setSummary('');
     setErrorMessage('');
     setStatus('uploading');
@@ -275,7 +272,7 @@ export default function DocumentsPage() {
           continue;
         }
         try {
-          const presignRes = await axios.post(`${baseUrl}/api/documents/presign`, {
+          const presignRes = await axios.post('/documents/presign', {
             filename: f.name,
             contentType: f.type || 'application/octet-stream',
             size: f.size,
@@ -288,7 +285,7 @@ export default function DocumentsPage() {
           await axios.post(url, s3Form, { onUploadProgress: (evt: { loaded: number; total?: number }) => {
             if (evt.total) setProgress(prev => ({ ...prev, [f.name]: Math.round((evt.loaded * 100) / evt.total) }));
           }});
-          await axios.post(`${baseUrl}/api/documents`, { key, filename: f.name, filetype: f.type, filesize: f.size }, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
+          await axios.post('/documents', { key, filename: f.name, filetype: f.type, filesize: f.size }, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' } });
           push({ message: `업로드 완료: ${f.name}`, type: 'success' });
           setProgress(prev => ({ ...prev, [f.name]: 100 }));
         } catch (ex: any) {
@@ -584,8 +581,7 @@ function useDeleteHandler(accessToken: string | null, onAfter?: () => void, onEr
       return;
     }
     try {
-      const baseUrl = window.location.origin;
-      await axios.delete(`${baseUrl}/api/documents/${documentId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      await axios.delete(`/documents/${documentId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
       onAfter?.();
     } catch (e: any) {
       const msg = e.response?.data?.message || '삭제 중 오류가 발생했습니다.';

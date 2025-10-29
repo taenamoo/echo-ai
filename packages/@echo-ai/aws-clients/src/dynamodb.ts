@@ -22,5 +22,33 @@ const baseClient = createDynamoDbClient();
 
 export const dynamoDbDocumentClient = DynamoDBDocumentClient.from(baseClient);
 
-export const MAIN_TABLE_NAME = 'EchoAI-Main-Table';
-export const STUDY_TABLE_NAME = 'EchoAi-Studies';
+const stageRaw = process.env.APP_STAGE || process.env.STAGE || 'develop';
+const stageId = stageRaw.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+const stageSuffix = stageId.length > 0 ? stageId : 'default';
+const withStage = (base: string) => `${base}-${stageSuffix}`;
+
+const defaultAccountsTableName = withStage('EchoAI-Accounts');
+const defaultDocumentsTableName = withStage('EchoAI-Documents');
+const defaultDocumentContentTableName = withStage('EchoAI-DocumentContent');
+const defaultStudyTableName = withStage('EchoAi-Studies');
+
+export const ACCOUNTS_TABLE_NAME =
+  process.env.ACCOUNTS_TABLE_NAME && process.env.ACCOUNTS_TABLE_NAME.length > 0
+    ? process.env.ACCOUNTS_TABLE_NAME
+    : defaultAccountsTableName;
+
+export const DOCUMENTS_TABLE_NAME =
+  process.env.DOCUMENTS_TABLE_NAME && process.env.DOCUMENTS_TABLE_NAME.length > 0
+    ? process.env.DOCUMENTS_TABLE_NAME
+    : defaultDocumentsTableName;
+
+export const DOCUMENT_CONTENT_TABLE_NAME =
+  process.env.DOCUMENT_CONTENT_TABLE_NAME &&
+  process.env.DOCUMENT_CONTENT_TABLE_NAME.length > 0
+    ? process.env.DOCUMENT_CONTENT_TABLE_NAME
+    : defaultDocumentContentTableName;
+
+export const STUDY_TABLE_NAME =
+  process.env.STUDY_TABLE_NAME && process.env.STUDY_TABLE_NAME.length > 0
+    ? process.env.STUDY_TABLE_NAME
+    : defaultStudyTableName;

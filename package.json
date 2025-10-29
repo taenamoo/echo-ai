@@ -3,14 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter @echo-ai/web dev",
-    "build": "pnpm --filter @echo-ai/web build",
-    "start": "pnpm --filter @echo-ai/web start",
-    "lint": "pnpm --filter @echo-ai/web lint",
+    "dev": "pnpm --filter @echo-ai/service-api dev & pnpm --filter @echo-ai/app-spa dev",
+    "build": "echo 'Use CDK build and SPA build in later steps'",
+    "start": "pnpm --filter @echo-ai/service-api serve & pnpm --filter @echo-ai/app-spa dev",
+    "lint": "echo 'No monorepo lint configured for SPA yet'",
     "db:migrate": "pnpm dlx tsx scripts/migration/create-dynamodb-table.ts",
     "test:auth": "pnpm exec tsx scripts/tests/auth.test.ts",
+    "test:contracts": "pnpm exec tsx scripts/tests/contracts.documents.list.test.ts && pnpm exec tsx scripts/tests/contracts.presign.test.ts",
     "pdfjs:pua": "pnpm dlx tsx scripts/local/build-pdfjs-pua.ts",
-    "test:pdfjs:pua": "pnpm dlx tsx scripts/tests/pdfjs-pua-benchmark.ts"
+    "test:pdfjs:pua": "pnpm dlx tsx scripts/tests/pdfjs-pua-benchmark.ts",
+    "spa:dev": "pnpm --filter @echo-ai/app-spa dev",
+    "spa:build": "pnpm --filter @echo-ai/app-spa build",
+    "spa:sync-assets": "bash scripts/tools/sync-public-assets.sh",
+    "deploy:aws": "bash scripts/deploy/aws-manual-deploy.sh"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.848.0",
@@ -23,7 +28,7 @@
     "bcryptjs": "^3.0.2",
     "dotenv": "^17.2.1",
     "jsonwebtoken": "^9.0.2",
-    "next": "15.4.1",
+
     "pdf-parse": "^1.1.1",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -45,6 +50,7 @@
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.6.2",
     "tailwindcss": "^4",
+    "tsup": "^8.3.0",
     "typescript": "^5"
   },
   "packageManager": "pnpm@10.13.1+sha512.37ebf1a5c7a30d5fabe0c5df44ee8da4c965ca0c5af3dbab28c3a1681b70a256218d05c81c9c0dcf767ef6b8551eb5b960042b9ed4300c59242336377e01cfad"

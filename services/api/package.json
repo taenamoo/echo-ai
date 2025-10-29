@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"TODO: implement API bundling\"",
-    "dev": "echo \"TODO: implement local API emulator\""
+    "build": "tsup --config tsup.config.ts",
+    "dev": "tsx src/local-http.ts",
+    "local": "tsx src/local-invoke.ts",
+    "serve": "tsx src/local-http.ts"
   },
   "dependencies": {
+    "@echo-ai/api-core": "workspace:*",
     "@echo-ai/auth": "workspace:*",
     "@echo-ai/aws-clients": "workspace:*",
     "@echo-ai/config": "workspace:*",

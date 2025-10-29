@@ -8,12 +8,14 @@
     ".": "./src/index.ts",
     "./dynamodb": "./src/dynamodb.ts",
     "./s3": "./src/s3.ts",
-    "./sqs": "./src/sqs.ts"
+    "./sqs": "./src/sqs.ts",
+    "./secrets": "./src/secrets.ts"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.848.0",
     "@aws-sdk/client-s3": "^3.864.0",
     "@aws-sdk/client-sqs": "^3.879.0",
+    "@aws-sdk/client-secrets-manager": "^3.879.0",
     "@aws-sdk/lib-dynamodb": "^3.850.0",
     "@echo-ai/config": "workspace:*"
   }

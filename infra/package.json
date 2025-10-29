@@ -1,0 +1,29 @@
+{
+  "name": "echoai-infra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "cdk": "./node_modules/.bin/cdk"
+  },
+  "scripts": {
+    "bootstrap": "cdk bootstrap",
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -w -p tsconfig.json",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --require-approval=never"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.217.0",
+    "constructs": "^10.4.2",
+    "source-map-support": "^0.5.21"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.2",
+    "esbuild": "^0.21.0",
+    "@types/node": "^20.12.0",
+    "constructs": "^10.4.2"
+  }
+}
